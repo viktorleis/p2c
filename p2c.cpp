@@ -43,6 +43,10 @@ struct IUSet {
 
    IUSet() {}
 
+   IUSet(IU* iu) {
+      v.push_back(iu);
+   }
+
    IUSet(const IUSet& x) {
       v = x.v;
    }
@@ -54,6 +58,12 @@ struct IUSet {
 
    IU** begin() { return v.data(); }
    IU** end() { return v.data() + v.size(); }
+
+   void add(IU* iu) {
+      auto it = lower_bound(v.begin(), v.end(), iu);
+      if (it == v.end() || *it != iu)
+         v.insert(it, iu);
+   }
 };
 
 IUSet operator|(const IUSet& a, const IUSet& b) {
@@ -78,7 +88,7 @@ IUSet operator-(const IUSet& a, const IUSet& b) {
 
 struct Exp {
    virtual string compile() = 0;
-   virtual vector<IU*> iusUsed() = 0;
+   virtual IUSet iusUsed() = 0;
    virtual ~Exp() {};
 };
 
@@ -92,7 +102,7 @@ struct IUExp : public Exp {
       return format("{}", varname(iu));
    }
 
-   vector<IU*> iusUsed() override {
+   IUSet iusUsed() override {
       return {iu};
    }
 };
@@ -107,7 +117,7 @@ struct ConstIntExp : public Exp {
       return format("{}", x);
    }
 
-   vector<IU*> iusUsed() override {
+   IUSet iusUsed() override {
       return {};
    }
 };
@@ -126,13 +136,12 @@ struct FnExp : public Exp {
       return format("{}({})", fnName, join(strs, ","));
    }
 
-   vector<IU*> iusUsed() override {
-      vector<IU*> v;
-      for (auto& exp : args) {
-         auto vv = exp->iusUsed();
-         v.insert(v.end(), vv.begin(), vv.end());
-      }
-      return v;
+   IUSet iusUsed() override {
+      IUSet result;
+      for (auto& exp : args)
+         for (IU* iu : exp->iusUsed())
+            result.add(iu);
+      return result;
    }
 };
 
@@ -197,7 +206,7 @@ struct Selection : public Operator {
 
    void computeRequired(const vector<IU*>& requiredInit) override {
       required = requiredInit;
-      vector<IU*> used = pred->iusUsed();
+      IUSet used = pred->iusUsed();
       for (IU* iu : used)
          if (find(required.begin(), required.end(), iu)==required.end())
             required.push_back(iu);
