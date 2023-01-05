@@ -1,4 +1,5 @@
 #include <cassert>
+#include <algorithm>
 #include <functional>
 #include <iostream>
 #include <string>
@@ -38,8 +39,40 @@ string varname(IU* iu) {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IUSet {
-   //set<IU*> v;
+   vector<IU*> v;
+
+   IUSet() {}
+
+   IUSet(const IUSet& x) {
+      v = x.v;
+   }
+
+   IUSet(const vector<IU*>& vv) {
+      v = vv;
+      sort(v.begin(), v.end());
+   }
+
+   IU** begin() { return v.data(); }
+   IU** end() { return v.data() + v.size(); }
 };
+
+IUSet operator|(const IUSet& a, const IUSet& b) {
+   IUSet result;
+   set_union(a.v.begin(), a.v.end(), b.v.begin(), b.v.end(), result.v.begin());
+   return result;
+}
+
+IUSet operator&(const IUSet& a, const IUSet& b) {
+   IUSet result;
+   set_intersection(a.v.begin(), a.v.end(), b.v.begin(), b.v.end(), result.v.begin());
+   return result;
+}
+
+IUSet operator-(const IUSet& a, const IUSet& b) {
+   IUSet result;
+   set_difference(a.v.begin(), a.v.end(), b.v.begin(), b.v.end(), result.v.begin());
+   return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,7 +161,7 @@ struct Scan : public Operator {
    ~Scan() {}
 
    void computeRequired(const vector<IU*>& requiredInit) override {
-      required.insert(required.begin(), requiredInit.begin(), requiredInit.end());
+      required = requiredInit;
    }
 
    void produce(std::function<void(void)> consume) override {
@@ -163,7 +196,7 @@ struct Selection : public Operator {
    ~Selection() {}
 
    void computeRequired(const vector<IU*>& requiredInit) override {
-      required.insert(required.begin(), requiredInit.begin(), requiredInit.end());
+      required = requiredInit;
       vector<IU*> used = pred->iusUsed();
       for (IU* iu : used)
          if (find(required.begin(), required.end(), iu)==required.end())
@@ -187,7 +220,7 @@ struct HashJoin : public Operator {
    vector<IU*> leftKeyIUs, rightKeyIUs, payloadIUs;
 
    void produce(std::function<void(void)> consume) override {
-      gen("unordered_map<tuple<{}>, tuple{}> map;",);
+      print("unordered_map<tuple<{}>, tuple{}> {};\n",);
       left->produce([&](){
          gen("map.insert(tuple<{}>({}))", leftKeyIUs, payloadIUs);
       });
