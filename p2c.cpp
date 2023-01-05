@@ -1,4 +1,5 @@
 #include <cassert>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <map>
@@ -12,52 +13,211 @@ using namespace std;
 using namespace fmt;
 
 #define blk(str, ...) do { cout << str << "{" << endl; __VA_ARGS__; cout << "}" << endl; } while (0);
-#define gen(...) do { cout << "{" << endl; __VA_ARGS__; cout << "}" << endl; } while (0);
 
 enum Type { Int, String, Double, Bool };
+string tname(Type t) {
+   switch (t) {
+      case Int: return "int";
+      case String: return "char*";
+      case Double: return "double";
+      case Bool: return "bool";
+   };
+}
 
-map<string, map<string, Type>> schema = {{"customer", {{"c_custkey", Type::Int}}}};
+map<string, vector<pair<string, Type>>> schema = {{"customer", {{"c_custkey", Type::Int}}}};
 
 struct IU {
-   Type type;
    string name;
+   Type type;
 };
 
+string varname(IU* iu) {
+   return format("{}{:x}", iu->name, reinterpret_cast<uintptr_t>(iu));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IUSet {
+   //set<IU*> v;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct Exp {
+   virtual string compile() = 0;
+   virtual vector<IU*> iusUsed() = 0;
+   virtual ~Exp() {};
+};
+
+struct IUExp : public Exp {
+   IU* iu;
+
+   IUExp(IU* iu) : iu(iu) {}
+   ~IUExp() {}
+
+   string compile() override {
+      return format("{}", varname(iu));
+   }
+
+   vector<IU*> iusUsed() override {
+      return {iu};
+   }
+};
+
+struct ConstIntExp : public Exp {
+   int x;
+
+   ConstIntExp(int x) : x(x) {};
+   ~ConstIntExp() {}
+
+   string compile() override {
+      return format("{}", x);
+   }
+
+   vector<IU*> iusUsed() override {
+      return {};
+   }
+};
+
+struct FnExp : public Exp {
+   string fnName;
+   vector<unique_ptr<Exp>> args;
+
+   FnExp(string fnName, vector<unique_ptr<Exp>>&& v) : fnName(fnName), args(std::move(v)) {}
+   ~FnExp() {}
+
+   string compile() override {
+      vector<string> strs;
+      for (auto& e : args)
+         strs.emplace_back(e->compile());
+      return format("{}({})", fnName, join(strs, ","));
+   }
+
+   vector<IU*> iusUsed() override {
+      vector<IU*> v;
+      for (auto& exp : args) {
+         auto vv = exp->iusUsed();
+         v.insert(v.end(), vv.begin(), vv.end());
+      }
+      return v;
+   }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 struct Operator {
    vector<IU*> required;
-
-   virtual void prepare(Operator* consumerInit, const vector<IU*>& requiredInit);
-   virtual void produce();
+   virtual void computeRequired(const vector<IU*>& requiredInit) = 0;
+   virtual void produce(std::function<void(void)> consume) = 0;
+   virtual ~Operator() {}
 };
 
 struct Scan : public Operator {
-   map<string, IU*> scope;
+   vector<IU> attributes;
+   IU tid = {"tid", Type::Int};
    string relName;
-   Operator* consumer;
 
    Scan(const string& relName) : relName(relName) {
-      auto rel = schema.find(relName);
-      assert(rel != schema.end());
-      scope.insert(rel->second.begin(), rel->second.end());
+      auto it = schema.find(relName);
+      assert(it != schema.end());
+      auto& rel = it->second;
+      attributes.reserve(rel.size());
+      for (auto& att : rel)
+         attributes.emplace_back(IU{att.first, att.second});
    }
 
-   void prepare(Operator* consumerInit, const vector<IU*>& requiredInit) {
-      consumer = consumerInit;
+   ~Scan() {}
+
+   void computeRequired(const vector<IU*>& requiredInit) override {
       required.insert(required.begin(), requiredInit.begin(), requiredInit.end());
    }
 
-   void produce() {
-      
+   void produce(std::function<void(void)> consume) override {
+      blk(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName),
+          for (IU* iu : required)
+             print("{} {} = db.{}.{}[{}];\n", tname(iu->type), varname(iu), relName, iu->name, varname(&tid));
+          consume();
+         );
+   }
+
+   IU* getIU(const string& attName) {
+      for (IU& iu : attributes)
+         if (iu.name == attName)
+            return &iu;
+      return nullptr;
+   }
+
+   vector<IU*> getIUs(const vector<string>& atts) {
+      vector<IU*> v;
+      for (const string& a : atts)
+         v.push_back(getIU(a));
+      return v;
    }
 };
 
-struct PrintSink : public Operator {
-   Operator* input;
+struct Selection : public Operator {
+   unique_ptr<Operator> input;
+   unique_ptr<Exp> pred;
+
+   Selection(unique_ptr<Operator> op, unique_ptr<Exp> predicate) : input(std::move(op)), pred(std::move(predicate)) {}
+
+   ~Selection() {}
+
+   void computeRequired(const vector<IU*>& requiredInit) override {
+      required.insert(required.begin(), requiredInit.begin(), requiredInit.end());
+      vector<IU*> used = pred->iusUsed();
+      for (IU* iu : used)
+         if (find(required.begin(), required.end(), iu)==required.end())
+            required.push_back(iu);
+      input->computeRequired(required);
+   }
+
+   void produce(std::function<void(void)> consume) override {
+      input->produce([&](){
+         blk(format("if ({})", pred->compile()),
+             consume();
+            );
+      });
+   }
 };
 
+/*
+struct HashJoin : public Operator {
+   unique_ptr<Operator> left;
+   unique_ptr<Operator> right;
+   vector<IU*> leftKeyIUs, rightKeyIUs, payloadIUs;
+
+   void produce(std::function<void(void)> consume) override {
+      gen("unordered_map<tuple<{}>, tuple{}> map;",);
+      left->produce([&](){
+         gen("map.insert(tuple<{}>({}))", leftKeyIUs, payloadIUs);
+      });
+      right->produce([&]() {
+      });
+   }
+};
+*/
+
+////////////////////////////////////////////////////////////////////////////////
+
+unique_ptr<Exp> constCmp(const string& str, IU* iu, int x) {
+   auto e1 = make_unique<IUExp>(iu);
+   auto e2 = make_unique<ConstIntExp>(x);
+   vector<unique_ptr<Exp>> v;
+   v.push_back(std::move(e1));
+   v.push_back(std::move(e2));
+   return make_unique<FnExp>(str, std::move(v));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[]) {
-   
+   auto c = make_unique<Scan>("customer");
+   IU* ck = c->getIU("c_custkey");
+   auto sel = make_unique<Selection>(std::move(c), constCmp("std::equal_to", ck, 1));
+   sel->computeRequired({ck});
+   sel->produce([]() {
+      
+   });
 
    return 0;
 }
@@ -65,7 +225,6 @@ int main(int argc, char* argv[]) {
 
 /*
 
--IU, tablescan, printop
 -expressions (=, <, >, <=, >=, OR, less, less_equal, equal_to, logical_and), map, selection
 -join (hash types, std:tuple)
 
