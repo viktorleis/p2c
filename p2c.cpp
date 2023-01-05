@@ -23,6 +23,7 @@ string tname(Type t) {
       case Double: return "double";
       case Bool: return "bool";
    };
+   throw;
 }
 
 map<string, vector<pair<string, Type>>> schema = {{"customer", {{"c_custkey", Type::Int}}}};
@@ -81,19 +82,19 @@ struct IUSet {
 
 IUSet operator|(const IUSet& a, const IUSet& b) {
    IUSet result;
-   set_union(a.v.begin(), a.v.end(), b.v.begin(), b.v.end(), result.v.begin());
+   set_union(a.v.begin(), a.v.end(), b.v.begin(), b.v.end(), back_inserter(result.v));
    return result;
 }
 
 IUSet operator&(const IUSet& a, const IUSet& b) {
    IUSet result;
-   set_intersection(a.v.begin(), a.v.end(), b.v.begin(), b.v.end(), result.v.begin());
+   set_intersection(a.v.begin(), a.v.end(), b.v.begin(), b.v.end(), back_inserter(result.v));
    return result;
 }
 
 IUSet operator-(const IUSet& a, const IUSet& b) {
    IUSet result;
-   set_difference(a.v.begin(), a.v.end(), b.v.begin(), b.v.end(), result.v.begin());
+   set_difference(a.v.begin(), a.v.end(), b.v.begin(), b.v.end(), back_inserter(result.v));
    return result;
 }
 
@@ -218,11 +219,11 @@ struct Selection : public Operator {
    ~Selection() {}
 
    void computeRequired(IUSet requiredInit) override {
-      required = requiredInit;
-      IUSet used = pred->iusUsed();
+      required = requiredInit | pred->iusUsed();
+      /*IUSet used = pred->iusUsed();
       for (IU* iu : used)
          if (find(required.begin(), required.end(), iu)==required.end())
-            required.add(iu);
+         required.add(iu);*/
       input->computeRequired(required);
    }
 
