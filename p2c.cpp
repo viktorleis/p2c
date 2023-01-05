@@ -47,7 +47,20 @@ struct IUSet {
       v.push_back(iu);
    }
 
+   IUSet& operator=(IUSet other) {
+      std::swap(v, other.v);
+      return *this;
+   }
+
+   IUSet(IUSet&& x) {
+      v = std::move(x.v);
+   }
+
    IUSet(const IUSet& x) {
+      v = x.v;
+   }
+
+   IUSet(IUSet& x) {
       v = x.v;
    }
 
@@ -147,8 +160,8 @@ struct FnExp : public Exp {
 
 ////////////////////////////////////////////////////////////////////////////////
 struct Operator {
-   vector<IU*> required;
-   virtual void computeRequired(const vector<IU*>& requiredInit) = 0;
+   IUSet required;
+   virtual void computeRequired(IUSet requiredInit) = 0;
    virtual void produce(std::function<void(void)> consume) = 0;
    virtual ~Operator() {}
 };
@@ -169,7 +182,7 @@ struct Scan : public Operator {
 
    ~Scan() {}
 
-   void computeRequired(const vector<IU*>& requiredInit) override {
+   void computeRequired(IUSet requiredInit) override {
       required = requiredInit;
    }
 
@@ -204,12 +217,12 @@ struct Selection : public Operator {
 
    ~Selection() {}
 
-   void computeRequired(const vector<IU*>& requiredInit) override {
+   void computeRequired(IUSet requiredInit) override {
       required = requiredInit;
       IUSet used = pred->iusUsed();
       for (IU* iu : used)
          if (find(required.begin(), required.end(), iu)==required.end())
-            required.push_back(iu);
+            required.add(iu);
       input->computeRequired(required);
    }
 
