@@ -213,7 +213,6 @@ struct Operator {
 struct Scan : public Operator {
    // IU storage for all available attributes
    vector<IU> attributes;
-   IU tid = {"tid", Type::Int};
    // relation name
    string relName;
 
@@ -238,9 +237,9 @@ struct Scan : public Operator {
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
-      genBlock(format("for (uint64_t {0} = 0; {0} != db.{1}.tupleCount; {0}++)", tid.varname, relName), [&]() {
+      genBlock(format("for (uint64_t i = 0; i != db.{}.tupleCount; i++)", relName), [&]() {
          for (IU* iu : required)
-            print("{} {} = db.{}.{}[{}];\n", tname(iu->type), iu->varname, relName, iu->name, tid.varname);
+            print("{} {} = db.{}.{}[i];\n", tname(iu->type), iu->varname, relName, iu->name);
          consume();
       });
    }
@@ -309,7 +308,7 @@ struct HashJoin : public Operator {
    unique_ptr<Operator> left;
    unique_ptr<Operator> right;
    vector<IU*> leftKeyIUs, rightKeyIUs;
-   IU ht = {"ht", Type::Int};
+   IU ht{"ht", Type::Int};
 
    HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs, const vector<IU*>& rightKeyIUs) :
       left(std::move(left)), right(std::move(right)), leftKeyIUs(leftKeyIUs), rightKeyIUs(rightKeyIUs) {}
