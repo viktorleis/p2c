@@ -273,11 +273,41 @@ struct Selection : public Operator {
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
-      input->produce(required | pred->iusUsed(), [&](){
+      input->produce(required | pred->iusUsed(), [&]() {
          genBlock(format("if ({})", pred->compile()), [&]() {
             consume();
          });
       });
+   }
+};
+
+// map operator
+struct Map : public Operator {
+   unique_ptr<Operator> input;
+   unique_ptr<Exp> exp;
+   IU iu;
+
+   Map(unique_ptr<Operator> op, unique_ptr<Exp> exp, const string& name, Type type) : input(std::move(op)), exp(std::move(exp)), iu{name, type} {}
+
+   ~Map() {}
+
+   IUSet availableIUs() override {
+      return input->availableIUs() | IUSet({&iu});
+   }
+
+   void produce(const IUSet& required, ConsumerFn consume) override {
+      input->produce(required - IUSet({&iu}), [&]() {
+            genBlock("", [&]() {
+               print("{} {} = {};\n", tname(iu.type), iu.varname, exp->compile());
+               consume();
+            });
+         });
+   }
+
+   IU* getIU(const string& attName) {
+      if (iu.name == attName)
+         return &iu;
+      return nullptr;
    }
 };
 
@@ -331,21 +361,21 @@ struct HashJoin : public Operator {
       // probe hash table
       right->produce(rightIUs, [&]() {
          // iterate over matches
-         genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)",
-                         ht.varname, formatVarnames(rightKeyIUs)), [&]() {
-                            // unpack payload
-                            unsigned countP=0;
-                            for (IU* iu : leftPayloadIUs)
-                               print("{} {} = get<{}>(it->second);\n", tname(iu->type), iu->varname, countP++);
-                            // unpack keys if needed
-                            for (unsigned i=0; i<leftKeyIUs.size(); i++) {
-                               IU* iu = leftKeyIUs[i];
-                               if (required.contains(iu))
-                                  print("{} {} = get<{}>(it->first);\n", tname(iu->type), iu->varname, i);
-                            }
-                            // consume
-                            consume();
-                         });
+         genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)", ht.varname, formatVarnames(rightKeyIUs)),
+                  [&]() {
+                     // unpack payload
+                     unsigned countP=0;
+                     for (IU* iu : leftPayloadIUs)
+                        print("{} {} = get<{}>(it->second);\n", tname(iu->type), iu->varname, countP++);
+                     // unpack keys if needed
+                     for (unsigned i=0; i<leftKeyIUs.size(); i++) {
+                        IU* iu = leftKeyIUs[i];
+                        if (required.contains(iu))
+                           print("{} {} = get<{}>(it->first);\n", tname(iu->type), iu->varname, i);
+                     }
+                     // consume
+                     consume();
+                  });
       });
    }
 
@@ -377,8 +407,16 @@ int main(int argc, char* argv[]) {
    IU* ck2 = c2->getIU("c_custkey");
    IU* ca = c2->getIU("c_address");
    auto j = make_unique<HashJoin>(std::move(sel), std::move(c2), vector<IU*>{{ck, cc}}, vector<IU*>{{ck2, ca}});
-   j->produce(IUSet{{cn, ck}}, [&]() {
-      print("cout << {} << \" \" << {} << endl;\n", cn->varname, ck->varname);
+
+   auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus<int>()", ck, 5), "ckNew", Type::Int);
+   IU* ckNew = m->getIU("ckNew");
+
+   vector<IU*> out{{cn, ck, ckNew}};
+   m->produce(IUSet(out), [&]() {
+      for (IU* iu : out)
+         print("cout << {} << \" \";", iu->varname);
+      print("cout << endl;\n");
+      //print("cout << {} << \" \" << {} << endl;\n", cn->varname, ck->varname);
    });
 
    return 0;
