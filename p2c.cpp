@@ -13,7 +13,12 @@
 using namespace std;
 using namespace fmt;
 
-#define blk(str, ...) do { cout << str << "{" << endl; __VA_ARGS__; cout << "}" << endl; } while (0);
+template<class Fn>
+void blk(const string& str, Fn fn) {
+   cout << str << "{" << endl;
+   fn();
+   cout << "}" << endl;
+}
 
 enum Type { Int, String, Double, Bool };
 string tname(Type t) {
@@ -188,11 +193,11 @@ struct Scan : public Operator {
    }
 
    void produce(std::function<void(void)> consume) override {
-      blk(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName),
-          for (IU* iu : required)
-             print("{} {} = db.{}.{}[{}];\n", tname(iu->type), varname(iu), relName, iu->name, varname(&tid));
-          consume();
-         );
+      blk(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName), [&]() {
+         for (IU* iu : required)
+            print("{} {} = db.{}.{}[{}];\n", tname(iu->type), varname(iu), relName, iu->name, varname(&tid));
+         consume();
+      });
    }
 
    IU* getIU(const string& attName) {
@@ -229,9 +234,9 @@ struct Selection : public Operator {
 
    void produce(std::function<void(void)> consume) override {
       input->produce([&](){
-         blk(format("if ({})", pred->compile()),
-             consume();
-            );
+         blk(format("if ({})", pred->compile()), [&]() {
+            consume();
+         });
       });
    }
 };
