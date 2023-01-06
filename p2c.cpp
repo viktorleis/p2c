@@ -36,14 +36,15 @@ map<string, vector<pair<string, Type>>> schema = {
    {"customer", {{"c_custkey", Type::Int}, {"c_name", Type::String}, {"c_address", Type::String}, {"c_city", Type::String},
                  {"c_nation", Type::String}, {"c_region", Type::String}, {"c_phone", Type::String}, {"c_mktsegment", Type::String}}}};
 
+unsigned varCounter = 1;
+
 struct IU {
    string name;
    Type type;
-};
+   string varname;
 
-string varname(IU* iu) {
-   return format("{}{:x}", iu->name, reinterpret_cast<uintptr_t>(iu));
-}
+   IU(const string& name, Type type) : name(name), type(type), varname(format("{}{}", name, varCounter++)) {}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,8 +68,8 @@ struct IUSet {
 
    IU** begin() { return v.data(); }
    IU** end() { return v.data() + v.size(); }
-   IU* const * begin() const { return v.data(); }
-   IU* const * end() const { return v.data() + v.size(); }
+   IU* const* begin() const { return v.data(); }
+   IU* const* end() const { return v.data() + v.size(); }
 
    void add(IU* iu) {
       auto it = lower_bound(v.begin(), v.end(), iu);
@@ -121,7 +122,7 @@ struct IUExp : public Exp {
    ~IUExp() {}
 
    string compile() override {
-      return format("{}", varname(iu));
+      return format("{}", iu->varname);
    }
 
    IUSet iusUsed() override {
@@ -201,9 +202,9 @@ struct Scan : public Operator {
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
-      genBlock(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName), [&]() {
+      genBlock(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", tid.varname, relName), [&]() {
          for (IU* iu : required)
-            print("{} {} = db.{}.{}[{}];\n", tname(iu->type), varname(iu), relName, iu->name, varname(&tid));
+            print("{} {} = db.{}.{}[{}];\n", tname(iu->type), iu->varname, relName, iu->name, tid.varname);
          consume();
       });
    }
@@ -257,7 +258,7 @@ string formatTypes(const vector<IU*>& ius) {
 string formatValues(const vector<IU*>& ius) {
    stringstream ss;
    for (IU* iu : ius)
-      ss << varname(iu) << ",";
+      ss << iu->varname << ",";
    string result = ss.str();
    if (result.size())
       result.pop_back(); // remove last ,
@@ -280,23 +281,23 @@ struct HashJoin : public Operator {
       IUSet rightIUs = (required - left->availableIUs()) | IUSet(rightKeyIUs);
       IUSet leftPayloadIUs = leftIUs - IUSet(leftKeyIUs);
 
-      print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), varname(&ht));
+      print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), ht.varname);
       left->produce(leftIUs, [&](){
          // insert tuple into hash table
-         print("{}.emplace({{{}}}, {{{}}});\n", varname(&ht), formatValues(leftKeyIUs), formatValues(leftPayloadIUs.v));
+         print("{}.emplace({{{}}}, {{{}}});\n", ht.varname, formatValues(leftKeyIUs), formatValues(leftPayloadIUs.v));
       });
       right->produce(rightIUs, [&]() {
          genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)", // iterate
-                         varname(&ht), formatValues(rightKeyIUs)), [&]() {
+                         ht.varname, formatValues(rightKeyIUs)), [&]() {
                             // unpack payload from hash table
                             unsigned countP=0;
                             for (IU* iu : leftPayloadIUs)
-                               print("{} {} = get<{}>(it->second);\n", tname(iu->type), varname(iu), countP++);
+                               print("{} {} = get<{}>(it->second);\n", tname(iu->type), iu->varname, countP++);
                             // unpack keys from entry if needed
                             for (unsigned i=0; i<leftKeyIUs.size(); i++) {
                                IU* iu = leftKeyIUs[i];
                                if (required.contains(iu))
-                                  print("{} {} = get<{}>(it->first);\n", tname(iu->type), varname(iu), i);
+                                  print("{} {} = get<{}>(it->first);\n", tname(iu->type), iu->varname, i);
                             }
                             consume();
                          });
@@ -340,7 +341,6 @@ int main(int argc, char* argv[]) {
 
 /*
 
-shorter names
 print -> multi-arg gen 
 mmap vectors
 
