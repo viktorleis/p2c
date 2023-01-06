@@ -77,6 +77,8 @@ struct IUSet {
 
    IU** begin() { return v.data(); }
    IU** end() { return v.data() + v.size(); }
+   IU* const * begin() const { return v.data(); }
+   IU* const * end() const { return v.data() + v.size(); }
 
    void add(IU* iu) {
       auto it = lower_bound(v.begin(), v.end(), iu);
@@ -166,13 +168,11 @@ struct FnExp : public Exp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<void(void)> Consumer;
+typedef std::function<void(void)> ConsumerFn;
 
 struct Operator {
-   IUSet required;
    virtual IUSet availableIUs() = 0;
-   virtual void computeRequired(IUSet requiredInit) = 0;
-   virtual void produce(Consumer consume) = 0;
+   virtual void produce(const IUSet& required, ConsumerFn consume) = 0;
    virtual ~Operator() {}
 };
 
@@ -199,11 +199,7 @@ struct Scan : public Operator {
       return result;
    }
 
-   void computeRequired(IUSet requiredInit) override {
-      required = requiredInit;
-   }
-
-   void produce(Consumer consume) override {
+   void produce(const IUSet& required, ConsumerFn consume) override {
       blk(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName), [&]() {
          for (IU* iu : required)
             print("{} {} = db.{}.{}[{}];\n", tname(iu->type), varname(iu), relName, iu->name, varname(&tid));
@@ -238,13 +234,8 @@ struct Selection : public Operator {
       return input->availableIUs();
    }
 
-   void computeRequired(IUSet requiredInit) override {
-      required = requiredInit | pred->iusUsed();
-      input->computeRequired(required);
-   }
-
-   void produce(Consumer consume) override {
-      input->produce([&](){
+   void produce(const IUSet& required, ConsumerFn consume) override {
+      input->produce(required | pred->iusUsed(), [&](){
          blk(format("if ({})", pred->compile()), [&]() {
             consume();
          });
@@ -286,8 +277,7 @@ int main(int argc, char* argv[]) {
    auto c = make_unique<Scan>("customer");
    IU* ck = c->getIU("c_custkey");
    auto sel = make_unique<Selection>(std::move(c), constCmp("std::equal_to", ck, 1));
-   sel->computeRequired({ck});
-   sel->produce([]() {
+   sel->produce({ck}, []() {
       
    });
 
