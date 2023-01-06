@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <fmt/core.h>
 #include <fmt/ranges.h>
@@ -202,7 +203,7 @@ struct Scan : public Operator {
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
-      genBlock(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", tid.varname, relName), [&]() {
+      genBlock(format("for (uint64_t {0} = 0; {0} != db.{1}.tupleCount; {0}++)", tid.varname, relName), [&]() {
          for (IU* iu : required)
             print("{} {} = db.{}.{}[{}];\n", tname(iu->type), iu->varname, relName, iu->name, tid.varname);
          consume();
@@ -286,7 +287,7 @@ struct HashJoin : public Operator {
       print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), ht.varname);
       left->produce(leftIUs, [&](){
          // insert tuple into hash table
-         print("{}.emplace({{{}}}, {{{}}});\n", ht.varname, formatValues(leftKeyIUs), formatValues(leftPayloadIUs.v));
+         print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatValues(leftKeyIUs), formatValues(leftPayloadIUs.v));
       });
 
       // probe hash table
@@ -331,7 +332,7 @@ int main(int argc, char* argv[]) {
    IU* ck = c->getIU("c_custkey");
    IU* cc = c->getIU("c_city");
    IU* cn = c->getIU("c_nation");
-   auto sel = make_unique<Selection>(std::move(c), callExp("std::equal_to", ck, 1));
+   auto sel = make_unique<Selection>(std::move(c), callExp("std::equal_to<int>()", ck, 1));
 
    auto c2 = make_unique<Scan>("customer");
    IU* ck2 = c2->getIU("c_custkey");
