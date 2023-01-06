@@ -246,6 +246,7 @@ struct Selection : public Operator {
    }
 };
 
+// format list of IU types
 string formatTypes(const vector<IU*>& ius) {
    stringstream ss;
    for (IU* iu : ius)
@@ -256,7 +257,8 @@ string formatTypes(const vector<IU*>& ius) {
    return result;
 }
 
-string formatValues(const vector<IU*>& ius) {
+// format list of IU varnames
+string formatVarnames(const vector<IU*>& ius) {
    stringstream ss;
    for (IU* iu : ius)
       ss << iu->varname << ",";
@@ -287,14 +289,14 @@ struct HashJoin : public Operator {
       print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), ht.varname);
       left->produce(leftIUs, [&](){
          // insert tuple into hash table
-         print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatValues(leftKeyIUs), formatValues(leftPayloadIUs.v));
+         print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(leftKeyIUs), formatVarnames(leftPayloadIUs.v));
       });
 
       // probe hash table
       right->produce(rightIUs, [&]() {
          // iterate over matches
          genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)",
-                         ht.varname, formatValues(rightKeyIUs)), [&]() {
+                         ht.varname, formatVarnames(rightKeyIUs)), [&]() {
                             // unpack payload
                             unsigned countP=0;
                             for (IU* iu : leftPayloadIUs)
@@ -338,8 +340,8 @@ int main(int argc, char* argv[]) {
    IU* ck2 = c2->getIU("c_custkey");
    IU* ca = c2->getIU("c_address");
    auto j = make_unique<HashJoin>(std::move(sel), std::move(c2), vector<IU*>{{ck, cc}}, vector<IU*>{{ck2, ca}});
-   j->produce(IUSet{{cn, ck}}, []() {
-      
+   j->produce(IUSet{{cn, ck}}, [&]() {
+      print("cout << {} << \" \" << {} << endl;\n", cn->varname, ck->varname);
    });
 
    return 0;

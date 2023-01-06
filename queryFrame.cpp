@@ -35,6 +35,6 @@ struct Database {
 
 int main() {
    Database db;
-#include "out.cpp"
+#include "gen.cpp"
    return 0;
 }
