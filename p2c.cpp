@@ -211,8 +211,10 @@ struct Operator {
 
 // table scan operator
 struct Scan : public Operator {
+   // IU storage for all available attributes
    vector<IU> attributes;
    IU tid = {"tid", Type::Int};
+   // relation name
    string relName;
 
    Scan(const string& relName) : relName(relName) {
