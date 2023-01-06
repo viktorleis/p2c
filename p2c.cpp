@@ -32,14 +32,9 @@ string tname(Type t) {
    throw;
 }
 
-map<string, vector<pair<string, Type>>> schema = {{"customer", {{"c_custkey", Type::Int},
-                                                                {"c_name", Type::String},
-                                                                {"c_address", Type::String},
-                                                                {"c_city", Type::String},
-                                                                {"c_nation", Type::String},
-                                                                {"c_region", Type::String},
-                                                                {"c_phone", Type::String},
-                                                                {"c_mktsegment", Type::String}}}};
+map<string, vector<pair<string, Type>>> schema = {
+   {"customer", {{"c_custkey", Type::Int}, {"c_name", Type::String}, {"c_address", Type::String}, {"c_city", Type::String},
+                 {"c_nation", Type::String}, {"c_region", Type::String}, {"c_phone", Type::String}, {"c_mktsegment", Type::String}}}};
 
 struct IU {
    string name;
@@ -70,10 +65,6 @@ struct IUSet {
       v = x.v;
    }
 
-   IUSet(IUSet& x) {
-      v = x.v;
-   }
-
    explicit IUSet(const vector<IU*>& vv) {
       v = vv;
       sort(v.begin(), v.end());
@@ -101,7 +92,6 @@ struct IUSet {
 bool operator==(const IUSet& a, const IUSet& b) {
    return equal(a.v.begin(), a.v.end(), b.v.begin(), b.v.end());
 }
-
 
 IUSet operator|(const IUSet& a, const IUSet& b) {
    IUSet result;
