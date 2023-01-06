@@ -7,6 +7,7 @@
 #include <cassert>
 #include <boost/functional/hash.hpp>
 
+// make sure we can hash; XXX: fix string hashing
 namespace std {
 template<typename... T>
 struct hash<tuple<T...>> {
