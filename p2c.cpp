@@ -370,7 +370,7 @@ struct Sort : public Operator {
       });
 
       // sort
-      print("sort({0}.begin(), {0}.end());", v.varname);
+      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});", v.varname); // XXX
 
       // iterate
       genBlock(format("for (auto& t : {})", v.varname), [&]() {
