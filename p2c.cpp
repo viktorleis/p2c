@@ -165,10 +165,13 @@ struct FnExp : public Exp {
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+typedef std::function<void(void)> Consumer;
+
 struct Operator {
    IUSet required;
    virtual void computeRequired(IUSet requiredInit) = 0;
-   virtual void produce(std::function<void(void)> consume) = 0;
+   virtual void produce(Consumer consume) = 0;
    virtual ~Operator() {}
 };
 
@@ -192,7 +195,7 @@ struct Scan : public Operator {
       required = requiredInit;
    }
 
-   void produce(std::function<void(void)> consume) override {
+   void produce(Consumer consume) override {
       blk(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName), [&]() {
          for (IU* iu : required)
             print("{} {} = db.{}.{}[{}];\n", tname(iu->type), varname(iu), relName, iu->name, varname(&tid));
@@ -225,14 +228,10 @@ struct Selection : public Operator {
 
    void computeRequired(IUSet requiredInit) override {
       required = requiredInit | pred->iusUsed();
-      /*IUSet used = pred->iusUsed();
-      for (IU* iu : used)
-         if (find(required.begin(), required.end(), iu)==required.end())
-         required.add(iu);*/
       input->computeRequired(required);
    }
 
-   void produce(std::function<void(void)> consume) override {
+   void produce(Consumer consume) override {
       input->produce([&](){
          blk(format("if ({})", pred->compile()), [&]() {
             consume();
@@ -247,7 +246,7 @@ struct HashJoin : public Operator {
    unique_ptr<Operator> right;
    vector<IU*> leftKeyIUs, rightKeyIUs, payloadIUs;
 
-   void produce(std::function<void(void)> consume) override {
+   void produce(Consumer consume) override {
       print("unordered_map<tuple<{}>, tuple{}> {};\n",);
       left->produce([&](){
          gen("map.insert(tuple<{}>({}))", leftKeyIUs, payloadIUs);
