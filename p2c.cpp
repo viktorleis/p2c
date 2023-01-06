@@ -277,28 +277,34 @@ struct HashJoin : public Operator {
    ~HashJoin() {}
 
    void produce(const IUSet& required, ConsumerFn consume) override {
+      // figure out where required IUs come from
       IUSet leftIUs = (required - right->availableIUs()) | IUSet(leftKeyIUs);
       IUSet rightIUs = (required - left->availableIUs()) | IUSet(rightKeyIUs);
-      IUSet leftPayloadIUs = leftIUs - IUSet(leftKeyIUs);
+      IUSet leftPayloadIUs = leftIUs - IUSet(leftKeyIUs); // these we need to store in hash table as payload
 
+      // build hash table
       print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), ht.varname);
       left->produce(leftIUs, [&](){
          // insert tuple into hash table
          print("{}.emplace({{{}}}, {{{}}});\n", ht.varname, formatValues(leftKeyIUs), formatValues(leftPayloadIUs.v));
       });
+
+      // probe hash table
       right->produce(rightIUs, [&]() {
-         genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)", // iterate
+         // iterate over matches
+         genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)",
                          ht.varname, formatValues(rightKeyIUs)), [&]() {
-                            // unpack payload from hash table
+                            // unpack payload
                             unsigned countP=0;
                             for (IU* iu : leftPayloadIUs)
                                print("{} {} = get<{}>(it->second);\n", tname(iu->type), iu->varname, countP++);
-                            // unpack keys from entry if needed
+                            // unpack keys if needed
                             for (unsigned i=0; i<leftKeyIUs.size(); i++) {
                                IU* iu = leftKeyIUs[i];
                                if (required.contains(iu))
                                   print("{} {} = get<{}>(it->first);\n", tname(iu->type), iu->varname, i);
                             }
+                            // consume
                             consume();
                          });
       });
@@ -337,11 +343,3 @@ int main(int argc, char* argv[]) {
 
    return 0;
 }
-
-
-/*
-
-print -> multi-arg gen 
-mmap vectors
-
- */
