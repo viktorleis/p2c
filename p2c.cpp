@@ -52,11 +52,6 @@ struct IUSet {
 
    IUSet() {}
 
-   IUSet& operator=(IUSet other) {
-      std::swap(v, other.v);
-      return *this;
-   }
-
    IUSet(IUSet&& x) {
       v = std::move(x.v);
    }
@@ -287,19 +282,23 @@ struct HashJoin : public Operator {
 
       print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), varname(&ht));
       left->produce(leftIUs, [&](){
+         // insert tuple into hash table
          print("{}.emplace({{{}}}, {{{}}});\n", varname(&ht), formatValues(leftKeyIUs), formatValues(leftPayloadIUs.v));
       });
       right->produce(rightIUs, [&]() {
-         genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)",
+         genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)", // iterate
                          varname(&ht), formatValues(rightKeyIUs)), [&]() {
+                            // unpack payload from hash table
                             unsigned countP=0;
                             for (IU* iu : leftPayloadIUs)
                                print("{} {} = get<{}>(it->second);\n", tname(iu->type), varname(iu), countP++);
+                            // unpack keys from entry if needed
                             for (unsigned i=0; i<leftKeyIUs.size(); i++) {
                                IU* iu = leftKeyIUs[i];
                                if (required.contains(iu))
                                   print("{} {} = get<{}>(it->first);\n", tname(iu->type), varname(iu), i);
                             }
+                            consume();
                          });
       });
    }
