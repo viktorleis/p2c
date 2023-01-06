@@ -170,6 +170,7 @@ typedef std::function<void(void)> Consumer;
 
 struct Operator {
    IUSet required;
+   virtual IUSet availableIUs() = 0;
    virtual void computeRequired(IUSet requiredInit) = 0;
    virtual void produce(Consumer consume) = 0;
    virtual ~Operator() {}
@@ -190,6 +191,13 @@ struct Scan : public Operator {
    }
 
    ~Scan() {}
+
+   IUSet availableIUs() override {
+      IUSet result;
+      for (auto& iu : attributes)
+         result.add(&iu);
+      return result;
+   }
 
    void computeRequired(IUSet requiredInit) override {
       required = requiredInit;
@@ -225,6 +233,10 @@ struct Selection : public Operator {
    Selection(unique_ptr<Operator> op, unique_ptr<Exp> predicate) : input(std::move(op)), pred(std::move(predicate)) {}
 
    ~Selection() {}
+
+   IUSet availableIUs() override {
+      return input->availableIUs();
+   }
 
    void computeRequired(IUSet requiredInit) override {
       required = requiredInit | pred->iusUsed();
