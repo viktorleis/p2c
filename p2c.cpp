@@ -9,12 +9,13 @@
 #include <fmt/ranges.h>
 #include <string>
 #include <string_view>
+#include <sstream>
 
 using namespace std;
 using namespace fmt;
 
 template<class Fn>
-void getBlock(const string& str, Fn fn) {
+void genBlock(const string& str, Fn fn) {
    cout << str << "{" << endl;
    fn();
    cout << "}" << endl;
@@ -56,10 +57,6 @@ struct IUSet {
 
    IUSet() {}
 
-   IUSet(IU* iu) {
-      v.push_back(iu);
-   }
-
    IUSet& operator=(IUSet other) {
       std::swap(v, other.v);
       return *this;
@@ -77,7 +74,7 @@ struct IUSet {
       v = x.v;
    }
 
-   IUSet(const vector<IU*>& vv) {
+   explicit IUSet(const vector<IU*>& vv) {
       v = vv;
       sort(v.begin(), v.end());
    }
@@ -92,8 +89,18 @@ struct IUSet {
       if (it == v.end() || *it != iu)
          v.insert(it, iu);
    }
+
+   bool contains (IU* iu) const {
+      auto it = lower_bound(v.begin(), v.end(), iu);
+      return (it != v.end() && *it == iu);
+   }
+
+   unsigned size() const { return v.size(); };
 };
 
+bool operator==(const IUSet& a, const IUSet& b) {
+   return equal(a.v.begin(), a.v.end(), b.v.begin(), b.v.end());
+}
 
 
 IUSet operator|(const IUSet& a, const IUSet& b) {
@@ -133,7 +140,7 @@ struct IUExp : public Exp {
    }
 
    IUSet iusUsed() override {
-      return {iu};
+      return IUSet({iu});
    }
 };
 
@@ -209,7 +216,7 @@ struct Scan : public Operator {
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
-      getBlock(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName), [&]() {
+      genBlock(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName), [&]() {
          for (IU* iu : required)
             print("{} {} = db.{}.{}[{}];\n", tname(iu->type), varname(iu), relName, iu->name, varname(&tid));
          consume();
@@ -245,39 +252,80 @@ struct Selection : public Operator {
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       input->produce(required | pred->iusUsed(), [&](){
-         getBlock(format("if ({})", pred->compile()), [&]() {
+         genBlock(format("if ({})", pred->compile()), [&]() {
             consume();
          });
       });
    }
 };
 
-/*
+string formatTypes(const vector<IU*>& ius) {
+   stringstream ss;
+   for (IU* iu : ius)
+      ss << tname(iu->type) << ",";
+   string result = ss.str();
+   if (result.size())
+      result.pop_back(); // remove last ,
+   return result;
+}
+
+string formatValues(const vector<IU*>& ius) {
+   stringstream ss;
+   for (IU* iu : ius)
+      ss << varname(iu) << ",";
+   string result = ss.str();
+   if (result.size())
+      result.pop_back(); // remove last ,
+   return result;
+}
+
 struct HashJoin : public Operator {
    unique_ptr<Operator> left;
    unique_ptr<Operator> right;
-   vector<IU*> leftKeyIUs, rightKeyIUs, payloadIUs;
+   vector<IU*> leftKeyIUs, rightKeyIUs;
+   IU ht = {"ht", Type::Int};
 
-   void produce(Consumer consume) override {
-      print("unordered_map<tuple<{}>, tuple{}> {};\n",);
-      left->produce([&](){
-         gen("map.insert(tuple<{}>({}))", leftKeyIUs, payloadIUs);
+   HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs, const vector<IU*>& rightKeyIUs) :
+      left(std::move(left)), right(std::move(right)), leftKeyIUs(leftKeyIUs), rightKeyIUs(rightKeyIUs) {}
+
+   ~HashJoin() {}
+
+   void produce(const IUSet& required, ConsumerFn consume) override {
+      IUSet leftIUs = (required - right->availableIUs()) | IUSet(leftKeyIUs);
+      IUSet rightIUs = (required - left->availableIUs()) | IUSet(rightKeyIUs);
+      IUSet leftPayloadIUs = leftIUs - IUSet(leftKeyIUs);
+
+      print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), varname(&ht));
+      left->produce(leftIUs, [&](){
+         print("{}.emplace({{{}}}, {{{}}});\n", varname(&ht), formatValues(leftKeyIUs), formatValues(leftPayloadIUs.v));
       });
-      right->produce([&]() {
+      right->produce(rightIUs, [&]() {
+         genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)",
+                         varname(&ht), formatValues(rightKeyIUs)), [&]() {
+                            unsigned countP=0;
+                            for (IU* iu : leftPayloadIUs)
+                               print("{} {} = get<{}>(it->second);\n", tname(iu->type), varname(iu), countP++);
+                            for (unsigned i=0; i<leftKeyIUs.size(); i++) {
+                               IU* iu = leftKeyIUs[i];
+                               if (required.contains(iu))
+                                  print("{} {} = get<{}>(it->first);\n", tname(iu->type), varname(iu), i);
+                            }
+                         });
       });
    }
+
+   IUSet availableIUs() override {
+      return left->availableIUs() | right->availableIUs();
+   }
 };
-*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
-unique_ptr<Exp> constCmp(const string& str, IU* iu, int x) {
-   auto e1 = make_unique<IUExp>(iu);
-   auto e2 = make_unique<ConstIntExp>(x);
+unique_ptr<Exp> callExp(const string& fn, IU* iu, int x) {
    vector<unique_ptr<Exp>> v;
-   v.push_back(std::move(e1));
-   v.push_back(std::move(e2));
-   return make_unique<FnExp>(str, std::move(v));
+   v.push_back(make_unique<IUExp>(iu));
+   v.push_back(make_unique<ConstIntExp>(x));
+   return make_unique<FnExp>(fn, std::move(v));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -286,8 +334,14 @@ int main(int argc, char* argv[]) {
    auto c = make_unique<Scan>("customer");
    IU* ck = c->getIU("c_custkey");
    IU* cc = c->getIU("c_city");
-   auto sel = make_unique<Selection>(std::move(c), constCmp("std::equal_to", ck, 1));
-   sel->produce({{ck, cc}}, []() {
+   IU* cn = c->getIU("c_nation");
+   auto sel = make_unique<Selection>(std::move(c), callExp("std::equal_to", ck, 1));
+
+   auto c2 = make_unique<Scan>("customer");
+   IU* ck2 = c2->getIU("c_custkey");
+   IU* ca = c2->getIU("c_address");
+   auto j = make_unique<HashJoin>(std::move(sel), std::move(c2), vector<IU*>{{ck, cc}}, vector<IU*>{{ck2, ca}});
+   j->produce(IUSet{{cn, ck}}, []() {
       
    });
 
@@ -297,21 +351,8 @@ int main(int argc, char* argv[]) {
 
 /*
 
--expressions (=, <, >, <=, >=, OR, less, less_equal, equal_to, logical_and), map, selection
--join (hash types, std:tuple)
-
-IU: datatype
-scope: map (name -> IU)
-context: map (IU -> symbol) "compilation context that offers access to attributes by mapping IUs to variables"
-
-bool type?
+shorter names
+print -> multi-arg gen 
 mmap vectors
-
----
-
-Scan n0("nation");
-Select n(n0, exp("equal_to", getIU(n0, "n_name"), constStr("foo")));
-Scan r("region");
-HashJoin hj(move(n), move(r), {"n_regionkey"}, {"r_regionkey"});
 
  */
