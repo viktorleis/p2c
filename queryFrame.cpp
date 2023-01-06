@@ -1,5 +1,6 @@
 #include <functional>
 #include <tuple>
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <unordered_map>

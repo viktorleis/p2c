@@ -1,3 +1,5 @@
+// Viktor Leis, 2023
+
 #include <cassert>
 #include <algorithm>
 #include <functional>
@@ -14,14 +16,6 @@
 
 using namespace std;
 using namespace fmt;
-
-// generate curly-brace block of C++ code (helper function)
-template<class Fn>
-void genBlock(const string& str, Fn fn) {
-   cout << str << "{" << endl;
-   fn();
-   cout << "}" << endl;
-}
 
 // available types
 enum Type { Int, String, Double, Bool };
@@ -56,9 +50,9 @@ struct IU {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// represent an unordered set of IUs
+// an unordered set of IUs
 struct IUSet {
-   // invariant: IUs are always sorted by pointer value
+   // set is represented as array; invariant: IUs are sorted by pointer value
    vector<IU*> v;
 
    // empty set constructor
@@ -89,7 +83,7 @@ struct IUSet {
    void add(IU* iu) {
       auto it = lower_bound(v.begin(), v.end(), iu);
       if (it == v.end() || *it != iu)
-         v.insert(it, iu);
+         v.insert(it, iu); // O(n), not nice
    }
 
    bool contains (IU* iu) const {
@@ -194,6 +188,14 @@ struct FnExp : public Exp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// generate curly-brace block of C++ code (helper function)
+template<class Fn>
+void genBlock(const string& str, Fn fn) {
+   cout << str << "{" << endl;
+   fn();
+   cout << "}" << endl;
+}
+
 // consumer callback function
 typedef std::function<void(void)> ConsumerFn;
 
@@ -216,6 +218,7 @@ struct Scan : public Operator {
    // relation name
    string relName;
 
+   // constructor
    Scan(const string& relName) : relName(relName) {
       // get relation info from schema
       auto it = schema.find(relName);
@@ -227,6 +230,7 @@ struct Scan : public Operator {
          attributes.emplace_back(IU{att.first, att.second});
    }
 
+   // destructor
    ~Scan() {}
 
    IUSet availableIUs() override {
@@ -264,8 +268,10 @@ struct Selection : public Operator {
    unique_ptr<Operator> input;
    unique_ptr<Exp> pred;
 
-   Selection(unique_ptr<Operator> op, unique_ptr<Exp> predicate) : input(std::move(op)), pred(std::move(predicate)) {}
+   // constructor
+   Selection(unique_ptr<Operator> input, unique_ptr<Exp> predicate) : input(std::move(input)), pred(std::move(predicate)) {}
 
+   // destructor
    ~Selection() {}
 
    IUSet availableIUs() override {
@@ -281,14 +287,16 @@ struct Selection : public Operator {
    }
 };
 
-// map operator
+// map operator (compute new value)
 struct Map : public Operator {
    unique_ptr<Operator> input;
    unique_ptr<Exp> exp;
    IU iu;
 
-   Map(unique_ptr<Operator> op, unique_ptr<Exp> exp, const string& name, Type type) : input(std::move(op)), exp(std::move(exp)), iu{name, type} {}
+   // constructor
+   Map(unique_ptr<Operator> input, unique_ptr<Exp> exp, const string& name, Type type) : input(std::move(input)), exp(std::move(exp)), iu{name, type} {}
 
+   // destructor
    ~Map() {}
 
    IUSet availableIUs() override {
@@ -318,7 +326,7 @@ string formatTypes(const vector<IU*>& ius) {
       ss << tname(iu->type) << ",";
    string result = ss.str();
    if (result.size())
-      result.pop_back(); // remove last ,
+      result.pop_back(); // remove last ','
    return result;
 }
 
@@ -329,9 +337,49 @@ string formatVarnames(const vector<IU*>& ius) {
       ss << iu->varname << ",";
    string result = ss.str();
    if (result.size())
-      result.pop_back(); // remove last ,
+      result.pop_back(); // remove last ','
    return result;
 }
+
+// sort operator
+struct Sort : public Operator {
+   unique_ptr<Operator> input;
+   vector<IU*> keyIUs;
+   IU v{"vector", Type::Int};
+
+   // constructor
+   Sort(unique_ptr<Operator> input, const vector<IU*>& keyIUs) : input(std::move(input)), keyIUs(keyIUs)  {}
+
+   // destructor
+   ~Sort() {}
+
+   IUSet availableIUs() override {
+      return input->availableIUs();
+   }
+
+   void produce(const IUSet& required, ConsumerFn consume) override {
+      // compute IUs
+      IUSet restIUs = required - IUSet(keyIUs);
+      vector<IU*> allIUs = keyIUs;
+      allIUs.insert(allIUs.end(), restIUs.v.begin(), restIUs.v.end());
+
+      // collect tuples
+      print("vector<tuple<{}>> {};\n", formatTypes(allIUs), v.varname);
+      input->produce(IUSet(allIUs), [&]() {
+         print("{}.push_back({{{}}});\n", v.varname, formatVarnames(allIUs));
+      });
+
+      // sort
+      print("sort({0}.begin(), {0}.end());", v.varname);
+
+      // iterate
+      genBlock(format("for (auto& t : {})", v.varname), [&]() {
+         for (unsigned i=0; i<allIUs.size(); i++)
+            print("{} {} = get<{}>(t);\n", tname(allIUs[i]->type), allIUs[i]->varname, i);
+         consume();
+      });
+   };
+};
 
 // hash join operator
 struct HashJoin : public Operator {
@@ -340,9 +388,11 @@ struct HashJoin : public Operator {
    vector<IU*> leftKeyIUs, rightKeyIUs;
    IU ht{"ht", Type::Int};
 
+   // constructor
    HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs, const vector<IU*>& rightKeyIUs) :
       left(std::move(left)), right(std::move(right)), leftKeyIUs(leftKeyIUs), rightKeyIUs(rightKeyIUs) {}
 
+   // destructor
    ~HashJoin() {}
 
    void produce(const IUSet& required, ConsumerFn consume) override {
@@ -411,12 +461,13 @@ int main(int argc, char* argv[]) {
    auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus<int>()", ck, 5), "ckNew", Type::Int);
    IU* ckNew = m->getIU("ckNew");
 
-   vector<IU*> out{{cn, ck, ckNew}};
-   m->produce(IUSet(out), [&]() {
+   auto s = make_unique<Sort>(std::move(m), vector<IU*>{{ck, ckNew}});
+
+   vector<IU*> out{{cn, ck}};
+   s->produce(IUSet(out), [&]() {
       for (IU* iu : out)
          print("cout << {} << \" \";", iu->varname);
       print("cout << endl;\n");
-      //print("cout << {} << \" \" << {} << endl;\n", cn->varname, ck->varname);
    });
 
    return 0;
