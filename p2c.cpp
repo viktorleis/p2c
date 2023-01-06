@@ -14,7 +14,7 @@ using namespace std;
 using namespace fmt;
 
 template<class Fn>
-void blk(const string& str, Fn fn) {
+void getBlock(const string& str, Fn fn) {
    cout << str << "{" << endl;
    fn();
    cout << "}" << endl;
@@ -31,7 +31,14 @@ string tname(Type t) {
    throw;
 }
 
-map<string, vector<pair<string, Type>>> schema = {{"customer", {{"c_custkey", Type::Int}}}};
+map<string, vector<pair<string, Type>>> schema = {{"customer", {{"c_custkey", Type::Int},
+                                                                {"c_name", Type::String},
+                                                                {"c_address", Type::String},
+                                                                {"c_city", Type::String},
+                                                                {"c_nation", Type::String},
+                                                                {"c_region", Type::String},
+                                                                {"c_phone", Type::String},
+                                                                {"c_mktsegment", Type::String}}}};
 
 struct IU {
    string name;
@@ -86,6 +93,8 @@ struct IUSet {
          v.insert(it, iu);
    }
 };
+
+
 
 IUSet operator|(const IUSet& a, const IUSet& b) {
    IUSet result;
@@ -200,7 +209,7 @@ struct Scan : public Operator {
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
-      blk(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName), [&]() {
+      getBlock(format("for (uint64_t {0} = 0; {0} != db.{1}.size(); {0}++)", varname(&tid), relName), [&]() {
          for (IU* iu : required)
             print("{} {} = db.{}.{}[{}];\n", tname(iu->type), varname(iu), relName, iu->name, varname(&tid));
          consume();
@@ -236,7 +245,7 @@ struct Selection : public Operator {
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       input->produce(required | pred->iusUsed(), [&](){
-         blk(format("if ({})", pred->compile()), [&]() {
+         getBlock(format("if ({})", pred->compile()), [&]() {
             consume();
          });
       });
@@ -276,8 +285,9 @@ unique_ptr<Exp> constCmp(const string& str, IU* iu, int x) {
 int main(int argc, char* argv[]) {
    auto c = make_unique<Scan>("customer");
    IU* ck = c->getIU("c_custkey");
+   IU* cc = c->getIU("c_city");
    auto sel = make_unique<Selection>(std::move(c), constCmp("std::equal_to", ck, 1));
-   sel->produce({ck}, []() {
+   sel->produce({{ck, cc}}, []() {
       
    });
 
