@@ -397,6 +397,10 @@ struct HashJoin : public Operator {
    // destructor
    ~HashJoin() {}
 
+   IUSet availableIUs() override {
+      return left->availableIUs() | right->availableIUs();
+   }
+
    void produce(const IUSet& required, ConsumerFn consume) override {
       // figure out where required IUs come from
       IUSet leftRequiredIUs = (required & left->availableIUs()) | IUSet(leftKeyIUs);
@@ -413,26 +417,22 @@ struct HashJoin : public Operator {
       // probe hash table
       right->produce(rightRequiredIUs, [&]() {
          // iterate over matches
-         genBlock(format("for (auto rng = {}.equal_range({{{}}}); rng.first!=rng.second; rng.first++)", ht.varname, formatVarnames(rightKeyIUs)),
+         genBlock(format("for (auto range = {}.equal_range({{{}}}); range.first!=range.second; range.first++)", ht.varname, formatVarnames(rightKeyIUs)),
                   [&]() {
                      // unpack payload
                      unsigned countP = 0;
                      for (IU* iu : leftPayloadIUs)
-                        print("{} {} = get<{}>(rng.first->second);\n", tname(iu->type), iu->varname, countP++);
+                        print("{} {} = get<{}>(range.first->second);\n", tname(iu->type), iu->varname, countP++);
                      // unpack keys if needed
                      for (unsigned i=0; i<leftKeyIUs.size(); i++) {
                         IU* iu = leftKeyIUs[i];
                         if (required.contains(iu))
-                           print("{} {} = get<{}>(rng.first->first);\n", tname(iu->type), iu->varname, i);
+                           print("{} {} = get<{}>(range.first->first);\n", tname(iu->type), iu->varname, i);
                      }
                      // consume
                      consume();
                   });
       });
-   }
-
-   IUSet availableIUs() override {
-      return left->availableIUs() | right->availableIUs();
    }
 };
 
