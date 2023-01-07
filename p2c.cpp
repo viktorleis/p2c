@@ -48,6 +48,29 @@ struct IU {
    IU(const string& name, Type type) : name(name), type(type), varname(format("{}{}", name, varCounter++)) {}
 };
 
+
+// format comma-separated list of IU types (helper function)
+string formatTypes(const vector<IU*>& ius) {
+   stringstream ss;
+   for (IU* iu : ius)
+      ss << tname(iu->type) << ",";
+   string result = ss.str();
+   if (result.size())
+      result.pop_back(); // remove last ','
+   return result;
+}
+
+// format comma-separated list of IU varnames (helper function)
+string formatVarnames(const vector<IU*>& ius) {
+   stringstream ss;
+   for (IU* iu : ius)
+      ss << iu->varname << ",";
+   string result = ss.str();
+   if (result.size())
+      result.pop_back(); // remove last ','
+   return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // an unordered set of IUs
@@ -319,28 +342,6 @@ struct Map : public Operator {
    }
 };
 
-// format comma-separated list of IU types (helper function)
-string formatTypes(const vector<IU*>& ius) {
-   stringstream ss;
-   for (IU* iu : ius)
-      ss << tname(iu->type) << ",";
-   string result = ss.str();
-   if (result.size())
-      result.pop_back(); // remove last ','
-   return result;
-}
-
-// format comma-separated list of IU varnames (helper function)
-string formatVarnames(const vector<IU*>& ius) {
-   stringstream ss;
-   for (IU* iu : ius)
-      ss << iu->varname << ",";
-   string result = ss.str();
-   if (result.size())
-      result.pop_back(); // remove last ','
-   return result;
-}
-
 // sort operator
 struct Sort : public Operator {
    unique_ptr<Operator> input;
@@ -375,7 +376,8 @@ struct Sort : public Operator {
       // iterate
       genBlock(format("for (auto& t : {})", v.varname), [&]() {
          for (unsigned i=0; i<allIUs.size(); i++)
-            print("{} {} = get<{}>(t);\n", tname(allIUs[i]->type), allIUs[i]->varname, i);
+            if (required.contains(allIUs[i]))
+               print("{} {} = get<{}>(t);\n", tname(allIUs[i]->type), allIUs[i]->varname, i);
          consume();
       });
    };
@@ -385,7 +387,7 @@ struct Sort : public Operator {
 struct HashJoin : public Operator {
    unique_ptr<Operator> left;
    unique_ptr<Operator> right;
-   vector<IU*> leftKeyIUs, rightKeyIUs;
+   vector<IU*> leftKeyIUs, rightKeyIUs; // XXX: pair?
    IU ht{"ht", Type::Int};
 
    // constructor
@@ -397,31 +399,31 @@ struct HashJoin : public Operator {
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       // figure out where required IUs come from
-      IUSet leftIUs = (required - right->availableIUs()) | IUSet(leftKeyIUs);
-      IUSet rightIUs = (required - left->availableIUs()) | IUSet(rightKeyIUs);
-      IUSet leftPayloadIUs = leftIUs - IUSet(leftKeyIUs); // these we need to store in hash table as payload
+      IUSet leftRequiredIUs = (required & left->availableIUs()) | IUSet(leftKeyIUs);
+      IUSet rightRequiredIUs = (required & right->availableIUs()) | IUSet(rightKeyIUs);
+      IUSet leftPayloadIUs = leftRequiredIUs - IUSet(leftKeyIUs); // these we need to store in hash table as payload
 
       // build hash table
       print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), ht.varname);
-      left->produce(leftIUs, [&](){
+      left->produce(leftRequiredIUs, [&]() {
          // insert tuple into hash table
          print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(leftKeyIUs), formatVarnames(leftPayloadIUs.v));
       });
 
       // probe hash table
-      right->produce(rightIUs, [&]() {
+      right->produce(rightRequiredIUs, [&]() {
          // iterate over matches
-         genBlock(format("for (auto it = {0}.find({{{1}}}); it!={0}.end(); it++)", ht.varname, formatVarnames(rightKeyIUs)),
+         genBlock(format("for (auto rng = {}.equal_range({{{}}}); rng.first!=rng.second; rng.first++)", ht.varname, formatVarnames(rightKeyIUs)),
                   [&]() {
                      // unpack payload
-                     unsigned countP=0;
+                     unsigned countP = 0;
                      for (IU* iu : leftPayloadIUs)
-                        print("{} {} = get<{}>(it->second);\n", tname(iu->type), iu->varname, countP++);
+                        print("{} {} = get<{}>(rng.first->second);\n", tname(iu->type), iu->varname, countP++);
                      // unpack keys if needed
                      for (unsigned i=0; i<leftKeyIUs.size(); i++) {
                         IU* iu = leftKeyIUs[i];
                         if (required.contains(iu))
-                           print("{} {} = get<{}>(it->first);\n", tname(iu->type), iu->varname, i);
+                           print("{} {} = get<{}>(rng.first->first);\n", tname(iu->type), iu->varname, i);
                      }
                      // consume
                      consume();
@@ -472,3 +474,9 @@ int main(int argc, char* argv[]) {
 
    return 0;
 }
+
+/*
+TODO:
+-fix string hashing + comparison?
+-sort: fix lambda
+*/
