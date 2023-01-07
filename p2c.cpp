@@ -453,14 +453,14 @@ int main(int argc, char* argv[]) {
    IU* ck = c->getIU("c_custkey");
    IU* cc = c->getIU("c_city");
    IU* cn = c->getIU("c_nation");
-   auto sel = make_unique<Selection>(std::move(c), makeCallExp("std::equal_to<int>()", ck, 1));
+   auto sel = make_unique<Selection>(std::move(c), makeCallExp("std::equal_to()", ck, 1));
 
    auto c2 = make_unique<Scan>("customer");
    IU* ck2 = c2->getIU("c_custkey");
    IU* ca = c2->getIU("c_address");
    auto j = make_unique<HashJoin>(std::move(sel), std::move(c2), vector<IU*>{{ck, cc}}, vector<IU*>{{ck2, ca}});
 
-   auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus<int>()", ck, 5), "ckNew", Type::Int);
+   auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus()", ck, 5), "ckNew", Type::Int);
    IU* ckNew = m->getIU("ckNew");
 
    auto s = make_unique<Sort>(std::move(m), vector<IU*>{{ck, ckNew}});
@@ -479,4 +479,5 @@ int main(int argc, char* argv[]) {
 TODO:
 -fix string hashing + comparison?
 -sort: fix lambda
+-print: IU, IUSet, tablescan (name)
 */
