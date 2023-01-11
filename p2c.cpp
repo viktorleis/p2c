@@ -371,7 +371,7 @@ struct Sort : public Operator {
       });
 
       // sort
-      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});", v.varname); // XXX
+      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});\n", v.varname); // XXX
 
       // iterate
       genBlock(format("for (auto& t : {})", v.varname), [&]() {
@@ -382,6 +382,58 @@ struct Sort : public Operator {
       });
    };
 };
+
+// group by operator
+struct GroupBy : public Operator {
+   enum AggFunction { Sum };
+
+   unique_ptr<Operator> input;
+   IUSet groupKeyIUs; // group by keys
+   AggFunction aggFn; // aggregation function;
+   IU* inputIU; // IU of result
+   IU aggIU;
+   IU ht{"ht", Type::Int};
+
+   // constructor
+   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs, const string& name, AggFunction aggFn, IU* inputIU) : input(std::move(input)), groupKeyIUs(groupKeyIUs), aggFn(aggFn), inputIU(inputIU), aggIU{name, inputIU->type} {}
+
+   // destructor
+   ~GroupBy() {}
+
+   IUSet availableIUs() override {
+      return groupKeyIUs | IUSet({&aggIU});
+   }
+
+   void produce(const IUSet& required, ConsumerFn consume) override {
+      // build hash table
+      print("unordered_map<tuple<{}>, {}> {};\n", formatTypes(groupKeyIUs.v), tname(inputIU->type), ht.varname);
+      input->produce(groupKeyIUs | IUSet({inputIU}), [&]() {
+         // insert tuple into hash table
+         print("auto it = {}.find({{{}}});\n", ht.varname, formatVarnames(groupKeyIUs.v));
+         genBlock(format("if (it == {}.end())", ht.varname), [&]() {
+            // insert group
+            print("{}.insert({{{{{}}}, {}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), inputIU->varname);
+         });
+         genBlock("else", [&]() {
+            // update group
+            switch (aggFn) {
+               case (AggFunction::Sum):
+                  print("it->second += {};\n", inputIU->varname);
+                  break;
+            };
+         });
+      });
+
+      // iterate over hash table
+   }
+
+   IU* getIU(const string& attName) {
+      if (aggIU.name == attName)
+         return &aggIU;
+      return nullptr;
+   }
+};
+
 
 // hash join operator
 struct HashJoin : public Operator {
@@ -463,9 +515,12 @@ int main(int argc, char* argv[]) {
    auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus()", ck, 5), "ckNew", Type::Int);
    IU* ckNew = m->getIU("ckNew");
 
-   auto s = make_unique<Sort>(std::move(m), vector<IU*>{{ck, ckNew}});
+   auto gb = make_unique<GroupBy>(std::move(m), IUSet({ck, cn}), "ckNewSum", GroupBy::AggFunction::Sum, ckNew);
+   IU* sum = gb->getIU("ckNewSum");
 
-   vector<IU*> out{{cn, ck}};
+   auto s = make_unique<Sort>(std::move(gb), vector<IU*>{{ck, sum}});
+
+   vector<IU*> out{{ck, sum}};
    s->produce(IUSet(out), [&]() {
       for (IU* iu : out)
          print("cout << {} << \" \";", iu->varname);
@@ -480,4 +535,7 @@ TODO:
 -fix string hashing + comparison?
 -sort: fix lambda
 -print: IU, IUSet, tablescan (name)
+-separate IU-like for ht etc
+-fix xxx
+-provideIU helper
 */
