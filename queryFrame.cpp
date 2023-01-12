@@ -19,10 +19,12 @@ struct Database : TPCH {
   template <typename T>
   void ensureLoaded(vec<T> &into, uint64_t &cnt, const std::string &relname,
                     const std::string &colname) {
+    // table is already loaded; don't have to reload
     if (into.is_backed()) {
-       assert(cnt);
-       return;
+      assert(cnt);
+      return;
     }
+    // load table and store in into
     std::string colpath = basepath + '/' + relname + '/' + colname + ".bin";
     vec<T> file = vec<T>(colpath.c_str());
     assert(cnt == 0 || cnt == file.size());

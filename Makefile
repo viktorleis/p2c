@@ -5,6 +5,6 @@ p2c: p2c.cpp
 	clang++ -std=c++20 -Wall -O0 -g p2c.cpp -o p2c -lfmt
 
 clean:
-	rm -f p2c query
+	rm -f p2c query gen.cpp
 
 .PHONY: clean

@@ -23,14 +23,18 @@ using namespace p2c;
 ////////////////////////////////////////////////////////////////////////////////
 
 // counter to make all IU names unique in generated code
-unsigned varCounter = 1;
+
+string genVar(const string& name) {
+   static unsigned varCounter = 1;
+   return format("{}{}", name, varCounter++);
+}
 
 struct IU {
    string name;
    Type type;
    string varname;
 
-   IU(const string& name, Type type) : name(name), type(type), varname(format("{}{}", name, varCounter++)) {}
+   IU(const string& name, Type type) : name(name), type(type), varname(genVar(name)) {}
 };
 
 // format comma-separated list of IU types (helper function)
@@ -530,6 +534,19 @@ unique_ptr<Exp> makeCallExp(const string& fn, IU* iu, int x) {
    return make_unique<FnExp>(fn, std::move(v));
 }
 
+// Print
+void produceAndPrint(unique_ptr<Operator> root, const IUSet& ius, unsigned perfRepeat = 2) {
+  genBlock(
+      format("for (uint64_t {0} = 0; {0} != {1}; {0}++)", genVar("perfRepeat"), perfRepeat - 1),
+      [&]() {
+        root->produce(ius, [&]() {
+          for (IU *iu : ius)
+            print("cout << {} << \" \";", iu->varname);
+          print("cout << endl;\n");
+        });
+      });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[]) {
@@ -542,11 +559,9 @@ int main(int argc, char* argv[]) {
    auto m = make_unique<Map>(std::move(sel), makeCallExp("std::plus()", nr, 5), "nrNew", INTEGER);
    IU* nrNew = m->getIU("nrNew");
 
-
    auto r = make_unique<Scan>("region");
    IU* rn = r->getIU("r_name");
    IU* rr = r->getIU("r_regionkey");
-
 
    auto j = make_unique<HashJoin>(std::move(m), std::move(r), vector<IU*>{nr}, vector<IU*>{rr});
 
@@ -559,41 +574,7 @@ int main(int argc, char* argv[]) {
 
    auto s = make_unique<Sort>(std::move(gb), vector<IU*>{sum});
 
-   auto& op = s;
+   produceAndPrint(std::move(s), IUSet({rn, sum, cnt}));
 
-   std::vector<IU*> out{{rn,sum,cnt}};
-   op->produce(IUSet(out), [&]() {
-     for (IU *iu : out)
-       print("cout << {} << \" \";", iu->varname);
-     print("cout << endl;\n");
-   });
-   // auto c = make_unique<Scan>("customer");
-   // IU* ck = c->getIU("c_custkey");
-   // IU* cc = c->getIU("c_phone");
-   // auto sel = make_unique<Selection>(std::move(c), makeCallExp("std::equal_to()", ck, 1));
-
-   // auto c2 = make_unique<Scan>("customer");
-   // IU* ck2 = c2->getIU("c_custkey");
-   // IU* cn = c2->getIU("c_name");
-   // auto j = make_unique<HashJoin>(std::move(sel), std::move(c2), vector<IU*>{{ck, cc}}, vector<IU*>{{ck2, cn}});
-
-   // auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus()", ck, 5), "ckNew", INTEGER);
-   // IU* ckNew = m->getIU("ckNew");
-
-   // auto gb = make_unique<GroupBy>(std::move(m), IUSet({ck, cn}));
-   // gb->addSum("ckNewSum", ckNew);
-   // gb->addCount("cnt");
-   // IU* sum = gb->getIU("ckNewSum");
-   // IU* cnt = gb->getIU("cnt");
-
-   // auto s = make_unique<Sort>(std::move(gb), vector<IU*>{{ck, sum}});
-
-   // vector<IU*> out{{ck, sum, cnt}};
-   // s->produce(IUSet(out), [&]() {
-   //    for (IU* iu : out)
-   //       print("cout << {} << \" \";", iu->varname);
-   //    print("cout << endl;\n");
-   // });
-
-   // return 0;
+   return 0;
 }
