@@ -378,23 +378,23 @@ struct Sort : public Operator {
 
 // group by operator
 struct GroupBy : public Operator {
-   enum AggFunction { Sum };
+   enum AggFunction { Sum, Count };
 
    unique_ptr<Operator> input;
    IUSet groupKeyIUs; // group by keys
    AggFunction aggFn; // aggregation function;
-   IU* inputIU; // IU of result
-   IU aggIU;
+   IU* inputIU; // input IU
+   IU resultIU; // result IU
    IU ht{"ht", Type::Int};
 
    // constructor
-   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs, const string& name, AggFunction aggFn, IU* inputIU) : input(std::move(input)), groupKeyIUs(groupKeyIUs), aggFn(aggFn), inputIU(inputIU), aggIU{name, inputIU->type} {}
+   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs, const string& name, AggFunction aggFn, IU* inputIU) : input(std::move(input)), groupKeyIUs(groupKeyIUs), aggFn(aggFn), inputIU(inputIU), resultIU{name, (aggFn==AggFunction::Count ? Type::Int : inputIU->type)} {}
 
    // destructor
    ~GroupBy() {}
 
    IUSet availableIUs() override {
-      return groupKeyIUs | IUSet({&aggIU});
+      return groupKeyIUs | IUSet({&resultIU});
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
@@ -405,7 +405,7 @@ struct GroupBy : public Operator {
          print("auto it = {}.find({{{}}});\n", ht.varname, formatVarnames(groupKeyIUs.v));
          genBlock(format("if (it == {}.end())", ht.varname), [&]() {
             // insert group
-            print("{}.insert({{{{{}}}, {}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), inputIU->varname);
+            print("{}.insert({{{{{}}}, {}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), (aggFn==AggFunction::Sum ? inputIU->varname : "1"));
          });
          genBlock("else", [&]() {
             // update group
@@ -413,16 +413,28 @@ struct GroupBy : public Operator {
                case (AggFunction::Sum):
                   print("it->second += {};\n", inputIU->varname);
                   break;
+               case (AggFunction::Count):
+                  print("it->second++;\n");
+                  break;
             };
          });
       });
 
       // iterate over hash table
+      genBlock(format("for (auto& it : {})", ht.varname), [&]() {
+         for (unsigned i=0; i<groupKeyIUs.size(); i++) {
+            IU* iu = groupKeyIUs.v[i];
+            if (required.contains(iu))
+               print("{} {} = get<{}>(it.first);\n", tname(iu->type), iu->varname, i);
+         }
+         print("{} {} = it.second;\n", tname(resultIU.type), resultIU.varname);
+         consume();
+      });
    }
 
    IU* getIU(const string& attName) {
-      if (aggIU.name == attName)
-         return &aggIU;
+      if (resultIU.name == attName)
+         return &resultIU;
       return nullptr;
    }
 };
