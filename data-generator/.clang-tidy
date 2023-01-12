@@ -1,0 +1,15 @@
+---
+Checks: 'bugprone*,
+    google*,
+    modernize*,
+    performance*,
+    llvm-namespace-comment,
+    misc-definitions-in-headers,
+    misc-redundant-expression,
+    -modernize-use-default-member-init,
+    -modernize-use-trailing-return-type,
+    -google-build-using-namespace,
+    -google-runtime-references,
+    -google-readability-todo'
+# WarningsAsErrors: '*'
+HeaderFilterRegex: '.*'
