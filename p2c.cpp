@@ -281,7 +281,7 @@ struct Scan : public Operator {
       for (IU& iu : attributes)
          if (iu.name == attName)
             return &iu;
-      return nullptr;
+      throw;
    }
 };
 
@@ -337,7 +337,7 @@ struct Map : public Operator {
    IU* getIU(const string& attName) {
       if (iu.name == attName)
          return &iu;
-      return nullptr;
+      throw;
    }
 };
 
@@ -345,7 +345,7 @@ struct Map : public Operator {
 struct Sort : public Operator {
    unique_ptr<Operator> input;
    vector<IU*> keyIUs;
-   IU v{"vector", Type::Undefined};
+   IU v{"sortVector", Type::Undefined};
 
    // constructor
    Sort(unique_ptr<Operator> input, const vector<IU*>& keyIUs) : input(std::move(input)), keyIUs(keyIUs)  {}
@@ -386,46 +386,77 @@ struct Sort : public Operator {
 struct GroupBy : public Operator {
    enum AggFunction { Sum, Count };
 
+   struct Aggregate {
+      AggFunction aggFn; // aggregate function
+      IU* inputIU; // IU to aggregate (is nullptr when aggFn==Count)
+      IU resultIU;
+   };
+
    unique_ptr<Operator> input;
-   IUSet groupKeyIUs; // group by keys
-   AggFunction aggFn; // aggregation function;
-   IU* inputIU; // input IU
-   IU resultIU; // result IU
-   IU ht{"ht", Type::Undefined};
+   IUSet groupKeyIUs;
+   vector<Aggregate> aggs;
+   IU ht{"aggHT", Type::Undefined};
 
    // constructor
-   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs, const string& name, AggFunction aggFn, IU* inputIU) :
-      input(std::move(input)), groupKeyIUs(groupKeyIUs), aggFn(aggFn), inputIU(inputIU),
-      resultIU{name, (aggFn==AggFunction::Count ? Type::Int : inputIU->type)}
-      {}
+   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs) : input(std::move(input)), groupKeyIUs(groupKeyIUs) {}
 
    // destructor
    ~GroupBy() {}
 
+   void addCount(const string& name) {
+      aggs.push_back({AggFunction::Count, nullptr, {name, Type::Int}});
+   }
+
+   void addSum(const string& name, IU* inputIU) {
+      aggs.push_back({AggFunction::Sum, inputIU, {name, inputIU->type}});
+   }
+
+   vector<IU*> resultIUs() {
+      vector<IU*> v;
+      for (auto&[fn, inputIU, resultIU] : aggs)
+         v.push_back(&resultIU);
+      return v;
+   }
+
+   vector<IU*> inputIUs() {
+      vector<IU*> v;
+      for (auto&[fn, inputIU, resultIU] : aggs)
+         if (inputIU)
+            v.push_back(inputIU);
+      return v;
+   }
+
    IUSet availableIUs() override {
-      return groupKeyIUs | IUSet({&resultIU});
+      return groupKeyIUs | IUSet(resultIUs());
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       // build hash table
-      print("unordered_map<tuple<{}>, {}> {};\n", formatTypes(groupKeyIUs.v), tname(inputIU->type), ht.varname);
-      input->produce(groupKeyIUs | IUSet({inputIU}), [&]() {
+      print("unordered_map<tuple<{}>, tuple<{}>> {};\n", formatTypes(groupKeyIUs.v), formatTypes(resultIUs()), ht.varname);
+      input->produce(groupKeyIUs | IUSet(inputIUs()), [&]() {
          // insert tuple into hash table
          print("auto it = {}.find({{{}}});\n", ht.varname, formatVarnames(groupKeyIUs.v));
          genBlock(format("if (it == {}.end())", ht.varname), [&]() {
+            vector<string> initValues;
+            for (auto&[fn, inputIU, resultIU] : aggs) {
+               switch (fn) {
+                  case (AggFunction::Sum): initValues.push_back(inputIU->varname); break;
+                  case (AggFunction::Count): initValues.push_back("1"); break;
+               }
+            }
             // insert new group
-            print("{}.insert({{{{{}}}, {}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), (aggFn==AggFunction::Sum ? inputIU->varname : "1"));
+            print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), fmt::join(initValues, ","));
          });
          genBlock("else", [&]() {
             // update group
-            switch (aggFn) {
-               case (AggFunction::Sum):
-                  print("it->second += {};\n", inputIU->varname);
-                  break;
-               case (AggFunction::Count):
-                  print("it->second++;\n");
-                  break;
-            };
+            unsigned i=0;
+            for (auto&[fn, inputIU, resultIU] : aggs) {
+               switch (fn) {
+                  case (AggFunction::Sum): print("get<{}>(it->second) += {};\n", i, inputIU->varname); break;
+                  case (AggFunction::Count): print("get<{}>(it->second)++;\n", i); break;
+               }
+               i++;
+            }
          });
       });
 
@@ -436,15 +467,20 @@ struct GroupBy : public Operator {
             if (required.contains(iu))
                provideIU(iu, format("get<{}>(it.first)", i));
          }
-         provideIU(&resultIU, "it.second");
+         unsigned i=0;
+         for (auto&[fn, inputIU, resultIU] : aggs) {
+            provideIU(&resultIU, format("get<{}>(it.second)", i));
+            i++;
+         }
          consume();
       });
    }
 
    IU* getIU(const string& attName) {
-      if (resultIU.name == attName)
-         return &resultIU;
-      return nullptr;
+      for (auto&[fn, inputIU, resultIU] : aggs)
+         if (resultIU.name == attName)
+            return &resultIU;
+      throw;
    }
 };
 
@@ -453,7 +489,7 @@ struct HashJoin : public Operator {
    unique_ptr<Operator> left;
    unique_ptr<Operator> right;
    vector<IU*> leftKeyIUs, rightKeyIUs;
-   IU ht{"ht", Type::Undefined};
+   IU ht{"joinHT", Type::Undefined};
 
    // constructor
    HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs, const vector<IU*>& rightKeyIUs) :
@@ -528,12 +564,15 @@ int main(int argc, char* argv[]) {
    auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus()", ck, 5), "ckNew", Type::Int);
    IU* ckNew = m->getIU("ckNew");
 
-   auto gb = make_unique<GroupBy>(std::move(m), IUSet({ck, cn}), "ckNewSum", GroupBy::AggFunction::Sum, ckNew);
+   auto gb = make_unique<GroupBy>(std::move(m), IUSet({ck, cn}));
+   gb->addSum("ckNewSum", ckNew);
+   gb->addCount("cnt");
    IU* sum = gb->getIU("ckNewSum");
+   IU* cnt = gb->getIU("cnt");
 
    auto s = make_unique<Sort>(std::move(gb), vector<IU*>{{ck, sum}});
 
-   vector<IU*> out{{ck, sum}};
+   vector<IU*> out{{ck, sum, cnt}};
    s->produce(IUSet(out), [&]() {
       for (IU* iu : out)
          print("cout << {} << \" \";", iu->varname);
