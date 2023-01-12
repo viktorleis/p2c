@@ -393,7 +393,10 @@ struct GroupBy : public Operator {
    IU ht{"ht", Type::Int};
 
    // constructor
-   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs, const string& name, AggFunction aggFn, IU* inputIU) : input(std::move(input)), groupKeyIUs(groupKeyIUs), aggFn(aggFn), inputIU(inputIU), resultIU{name, (aggFn==AggFunction::Count ? Type::Int : inputIU->type)} {}
+   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs, const string& name, AggFunction aggFn, IU* inputIU) :
+      input(std::move(input)), groupKeyIUs(groupKeyIUs), aggFn(aggFn), inputIU(inputIU),
+      resultIU{name, (aggFn==AggFunction::Count ? Type::Int : inputIU->type)}
+      {}
 
    // destructor
    ~GroupBy() {}
@@ -546,5 +549,4 @@ TODO:
 -print?: IU, IUSet, tablescan (name)
 -separate IU-like for ht etc
 -hashjoin: left/right keyius as std::pair
--provideIU helper
 */
