@@ -6,37 +6,33 @@
 #include <unordered_map>
 #include <vector>
 #include <cassert>
-#include <boost/functional/hash.hpp>
-
-// make sure we can hash; XXX: fix string hashing
-namespace std {
-template<typename... T>
-struct hash<tuple<T...>> {
-   size_t operator()(tuple<T...> const& arg) const noexcept { return boost::hash_value(arg); }
-};
-}
+#include "tpch.hpp"
 
 using namespace std;
+using namespace p2c;
 
-struct CustomerRelation {
-   vector<int> c_custkey;
-   vector<char*> c_name;
-   vector<char*> c_address;
-   vector<char*> c_city;
-   vector<char*> c_nation;
-   vector<char*> c_region;
-   vector<char*> c_phone;
-   vector<char*> c_mktsegment;
-   uint64_t tupleCount = 0;
+struct Database : TPCH {
+  std::string basepath;
+
+  Database(const std::string &path) : basepath(path) {}
+
+  template <typename T>
+  void ensureLoaded(vec<T> &into, uint64_t &cnt, const std::string &relname,
+                    const std::string &colname) {
+    if (into.is_backed()) {
+       assert(cnt);
+       return;
+    }
+    std::string colpath = basepath + '/' + relname + '/' + colname + ".bin";
+    vec<T> file = vec<T>(colpath.c_str());
+    assert(cnt == 0 || cnt == file.size());
+    cnt = file.size();
+    into = std::move(file);
+  };
 };
 
-struct Database {
-   CustomerRelation customer;
-};
-
-
-int main() {
-   Database db;
+int main(int argc, char** argv) {
+   Database db(argc >= 2 ? argv[1] : "/opt/tpch/sf1");
 #include "gen.cpp"
    return 0;
 }
