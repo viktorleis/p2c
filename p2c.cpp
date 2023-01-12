@@ -364,7 +364,7 @@ struct Sort : public Operator {
       });
 
       // sort
-      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});\n", v.varname); // XXX
+      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});\n", v.varname);
 
       // iterate
       genBlock(format("for (auto& t : {})", v.varname), [&]() {
@@ -404,7 +404,7 @@ struct GroupBy : public Operator {
          // insert tuple into hash table
          print("auto it = {}.find({{{}}});\n", ht.varname, formatVarnames(groupKeyIUs.v));
          genBlock(format("if (it == {}.end())", ht.varname), [&]() {
-            // insert group
+            // insert new group
             print("{}.insert({{{{{}}}, {}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), (aggFn==AggFunction::Sum ? inputIU->varname : "1"));
          });
          genBlock("else", [&]() {
@@ -444,7 +444,7 @@ struct GroupBy : public Operator {
 struct HashJoin : public Operator {
    unique_ptr<Operator> left;
    unique_ptr<Operator> right;
-   vector<IU*> leftKeyIUs, rightKeyIUs; // XXX: pair?
+   vector<IU*> leftKeyIUs, rightKeyIUs;
    IU ht{"ht", Type::Int};
 
    // constructor
@@ -538,9 +538,9 @@ int main(int argc, char* argv[]) {
 /*
 TODO:
 -fix string hashing + comparison?
--sort: fix lambda
+-sort: optimize lambda
 -print: IU, IUSet, tablescan (name)
 -separate IU-like for ht etc
--fix xxx
+-hashjoin: left/right keyius as std::pair
 -provideIU helper
 */
