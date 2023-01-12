@@ -581,11 +581,3 @@ int main(int argc, char* argv[]) {
 
    return 0;
 }
-
-/*
-TODO:
--group by: multiple exps
--sort: optimize lambda
--print?: IU, IUSet, tablescan (name)
--hashjoin: left/right keyius as std::pair
-*/
