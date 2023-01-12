@@ -71,6 +71,11 @@ string formatVarnames(const vector<IU*>& ius) {
    return result;
 }
 
+// provide an IU by generating local variable (helper)
+void provideIU(IU* iu, const string& value) {
+   print("{} {} = {};\n", tname(iu->type), iu->varname, value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // an unordered set of IUs
@@ -266,7 +271,7 @@ struct Scan : public Operator {
    void produce(const IUSet& required, ConsumerFn consume) override {
       genBlock(format("for (uint64_t i = 0; i != db.{}.tupleCount; i++)", relName), [&]() {
          for (IU* iu : required)
-            print("{} {} = db.{}.{}[i];\n", tname(iu->type), iu->varname, relName, iu->name);
+            provideIU(iu, format("db.{}.{}[i]", relName, iu->name));
          consume();
       });
    }
@@ -322,7 +327,7 @@ struct Map : public Operator {
    void produce(const IUSet& required, ConsumerFn consume) override {
       input->produce(required - IUSet({&iu}), [&]() {
             genBlock("", [&]() {
-               print("{} {} = {};\n", tname(iu.type), iu.varname, exp->compile());
+               provideIU(&iu, exp->compile());
                consume();
             });
          });
@@ -370,7 +375,7 @@ struct Sort : public Operator {
       genBlock(format("for (auto& t : {})", v.varname), [&]() {
          for (unsigned i=0; i<allIUs.size(); i++)
             if (required.contains(allIUs[i]))
-               print("{} {} = get<{}>(t);\n", tname(allIUs[i]->type), allIUs[i]->varname, i);
+               provideIU(allIUs[i], format("get<{}>(t)", i));
          consume();
       });
    };
@@ -425,9 +430,9 @@ struct GroupBy : public Operator {
          for (unsigned i=0; i<groupKeyIUs.size(); i++) {
             IU* iu = groupKeyIUs.v[i];
             if (required.contains(iu))
-               print("{} {} = get<{}>(it.first);\n", tname(iu->type), iu->varname, i);
+               provideIU(iu, format("get<{}>(it.first)", i));
          }
-         print("{} {} = it.second;\n", tname(resultIU.type), resultIU.varname);
+         provideIU(&resultIU, "it.second");
          consume();
       });
    }
@@ -438,7 +443,6 @@ struct GroupBy : public Operator {
       return nullptr;
    }
 };
-
 
 // hash join operator
 struct HashJoin : public Operator {
@@ -479,12 +483,12 @@ struct HashJoin : public Operator {
                      // unpack payload
                      unsigned countP = 0;
                      for (IU* iu : leftPayloadIUs)
-                        print("{} {} = get<{}>(range.first->second);\n", tname(iu->type), iu->varname, countP++);
+                        provideIU(iu, format("get<{}>(range.first->second)", countP++));
                      // unpack keys if needed
                      for (unsigned i=0; i<leftKeyIUs.size(); i++) {
                         IU* iu = leftKeyIUs[i];
                         if (required.contains(iu))
-                           print("{} {} = get<{}>(range.first->first);\n", tname(iu->type), iu->varname, i);
+                           provideIU(iu, format("get<{}>(range.first->first)", i));
                      }
                      // consume
                      consume();
@@ -537,9 +541,9 @@ int main(int argc, char* argv[]) {
 
 /*
 TODO:
--fix string hashing + comparison?
+-group by: multiple exps
 -sort: optimize lambda
--print: IU, IUSet, tablescan (name)
+-print?: IU, IUSet, tablescan (name)
 -separate IU-like for ht etc
 -hashjoin: left/right keyius as std::pair
 -provideIU helper
