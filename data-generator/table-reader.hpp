@@ -1,4 +1,5 @@
 #pragma once
+#include <fcntl.h>
 #include <string>
 #include <vector>
 #include "../io.hpp"
@@ -41,7 +42,7 @@ template <typename T> struct ColumnOutput {
   }
 
   page_t make_page(const char *filename) const {
-    auto page = page_t(filename, O_CREAT, output_size);
+    auto page = page_t(filename, O_CREAT | O_RDWR, output_size);
     if constexpr (page_t::size_tag::IS_VARIABLE) {
       auto idx = 0ul;
       auto offset = page.file_size;
@@ -117,17 +118,13 @@ template <typename... Ts> struct TableReader : TableImport<Ts...> {
   using super_t = TableImport<Ts...>;
   std::array<std::string, sizeof...(Ts)> output_files;
 
-  TableReader(const std::string &output_prefix, const char *filename)
+  TableReader(const std::string &output_prefix, const char *filename, char const* const* colnames)
       : super_t(filename) {
     // initialize output files
     std::filesystem::create_directories(output_prefix);
     this->fold_outputs(
         0, [&](const auto &output, unsigned idx, unsigned num, unsigned v) {
-          using value_t =
-              typename std::remove_reference<decltype(output)>::type::value_t;
-          using parser_t = csv::Parser<value_t>;
-          output_files[idx] = output_prefix + std::to_string(idx) + "." +
-                              parser_t::TYPE_NAME + ".bin";
+          output_files[idx] = output_prefix + colnames[idx] + ".bin";
           return 0;
         });
   }
