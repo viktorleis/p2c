@@ -13,27 +13,11 @@
 #include <string>
 #include <string_view>
 #include <sstream>
+#include "types.hpp"
 
 using namespace std;
 using namespace fmt;
-
-// available types
-enum Type { Int, String, Double, Bool };
-
-// convert compile-time type to C++ type name
-string tname(Type t) {
-   switch (t) {
-      case Int: return "int";
-      case String: return "char*";
-      case Double: return "double";
-      case Bool: return "bool";
-   };
-   throw;
-}
-
-map<string, vector<pair<string, Type>>> schema = {
-   {"customer", {{"c_custkey", Type::Int}, {"c_name", Type::String}, {"c_address", Type::String}, {"c_city", Type::String},
-                 {"c_nation", Type::String}, {"c_region", Type::String}, {"c_phone", Type::String}, {"c_mktsegment", Type::String}}}};
+using namespace p2c;
 
 // counter to make all IU names unique in generated code
 unsigned varCounter = 1;
@@ -264,6 +248,8 @@ struct Scan : public Operator {
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
+      for (IU* iu : required)
+         print("db.ensureLoaded<{0}>(db.{1}.{2}, db.{1}.tupleCount \"{1}\", \"{2}\");", tname(iu->type), relName, iu->name);
       genBlock(format("for (uint64_t i = 0; i != db.{}.tupleCount; i++)", relName), [&]() {
          for (IU* iu : required)
             print("{} {} = db.{}.{}[i];\n", tname(iu->type), iu->varname, relName, iu->name);
