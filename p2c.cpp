@@ -18,7 +18,7 @@ using namespace std;
 using namespace fmt;
 
 // available types
-enum Type { Int, String, Double, Bool };
+enum Type { Int, String, Double, Bool, Undefined };
 
 // convert compile-time type to C++ type name
 string tname(Type t) {
@@ -27,6 +27,7 @@ string tname(Type t) {
       case String: return "char*";
       case Double: return "double";
       case Bool: return "bool";
+      case Undefined: throw;
    };
    throw;
 }
@@ -344,7 +345,7 @@ struct Map : public Operator {
 struct Sort : public Operator {
    unique_ptr<Operator> input;
    vector<IU*> keyIUs;
-   IU v{"vector", Type::Int};
+   IU v{"vector", Type::Undefined};
 
    // constructor
    Sort(unique_ptr<Operator> input, const vector<IU*>& keyIUs) : input(std::move(input)), keyIUs(keyIUs)  {}
@@ -390,7 +391,7 @@ struct GroupBy : public Operator {
    AggFunction aggFn; // aggregation function;
    IU* inputIU; // input IU
    IU resultIU; // result IU
-   IU ht{"ht", Type::Int};
+   IU ht{"ht", Type::Undefined};
 
    // constructor
    GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs, const string& name, AggFunction aggFn, IU* inputIU) :
@@ -452,7 +453,7 @@ struct HashJoin : public Operator {
    unique_ptr<Operator> left;
    unique_ptr<Operator> right;
    vector<IU*> leftKeyIUs, rightKeyIUs;
-   IU ht{"ht", Type::Int};
+   IU ht{"ht", Type::Undefined};
 
    // constructor
    HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs, const vector<IU*>& rightKeyIUs) :
@@ -547,6 +548,5 @@ TODO:
 -group by: multiple exps
 -sort: optimize lambda
 -print?: IU, IUSet, tablescan (name)
--separate IU-like for ht etc
 -hashjoin: left/right keyius as std::pair
 */
