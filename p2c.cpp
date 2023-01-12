@@ -36,10 +36,10 @@ map<string, vector<pair<string, Type>>> schema = {
    {"customer", {{"c_custkey", Type::Int}, {"c_name", Type::String}, {"c_address", Type::String}, {"c_city", Type::String},
                  {"c_nation", Type::String}, {"c_region", Type::String}, {"c_phone", Type::String}, {"c_mktsegment", Type::String}}}};
 
+////////////////////////////////////////////////////////////////////////////////
+
 // counter to make all IU names unique in generated code
 unsigned varCounter = 1;
-
-////////////////////////////////////////////////////////////////////////////////
 
 struct IU {
    string name;
@@ -48,7 +48,6 @@ struct IU {
 
    IU(const string& name, Type type) : name(name), type(type), varname(format("{}{}", name, varCounter++)) {}
 };
-
 
 // format comma-separated list of IU types (helper function)
 string formatTypes(const vector<IU*>& ius) {
@@ -76,8 +75,6 @@ string formatVarnames(const vector<IU*>& ius) {
 void provideIU(IU* iu, const string& value) {
    print("{} {} = {};\n", tname(iu->type), iu->varname, value);
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 // an unordered set of IUs
 struct IUSet {
