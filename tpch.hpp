@@ -23,7 +23,7 @@ public:
     vec<String> p_container;
     vec<Numeric> p_retailprice;
     vec<String> p_comment;
-    uint64_t tupleCount;
+    uint64_t tupleCount{0};
   } part;
 
   struct {
@@ -34,7 +34,7 @@ public:
     vec<String> s_phone;
     vec<Numeric> s_acctbal;
     vec<String> s_comment;
-    uint64_t tupleCount;
+    uint64_t tupleCount{0};
   } supplier;
 
   struct {
@@ -43,7 +43,7 @@ public:
     vec<Integer> ps_availqty;
     vec<Numeric> ps_supplycost;
     vec<String> ps_comment;
-    uint64_t tupleCount;
+    uint64_t tupleCount{0};
   } partsupp;
 
   struct {
@@ -55,7 +55,7 @@ public:
     vec<Numeric> c_acctbal;
     vec<String> c_mktsegment;
     vec<String> c_comment;
-    uint64_t tupleCount;
+    uint64_t tupleCount{0};
   } customer;
 
   struct {
@@ -68,7 +68,7 @@ public:
     vec<String> o_clerk;
     vec<Integer> o_shippriority;
     vec<String> o_comment;
-    uint64_t tupleCount;
+    uint64_t tupleCount{0};
   } orders;
 
   struct {
@@ -88,7 +88,7 @@ public:
     vec<String> l_shipinstruct;
     vec<String> l_shipmode;
     vec<String> l_comment;
-    uint64_t tupleCount;
+    uint64_t tupleCount{0};
   } lineitem;
 
   struct {
@@ -96,94 +96,95 @@ public:
     vec<String> n_name;
     vec<Integer> n_regionkey;
     vec<String> n_comment;
-    uint64_t tupleCount;
+    uint64_t tupleCount{0};
   } nation;
 
   struct {
     vec<Integer> r_regionkey;
     vec<String> r_name;
     vec<String> r_comment;
-    uint64_t tupleCount;
+    uint64_t tupleCount{0};
   } region;
-
-  inline static std::map<std::string, vec<std::pair<std::string, Type>>> schema =
-      {{"part",
-        {{"p_partkey", INTEGER},
-         {"p_name", STRING},
-         {"p_mfgr", STRING},
-         {"p_brand", STRING},
-         {"p_type", STRING},
-         {"p_size", INTEGER},
-         {"p_container", STRING},
-         {"p_retailprice", NUMERIC},
-         {"p_comment", STRING}}},
-       {"supplier",
-        {{"s_suppkey", INTEGER},
-         {"s_name", STRING},
-         {"s_address", STRING},
-         {"s_nationkey", INTEGER},
-         {"s_phone", STRING},
-         {"s_acctbal", NUMERIC},
-         {"s_comment", STRING}}},
-       {"partsupp",
-        {{"ps_partkey", INTEGER},
-         {"ps_suppkey", INTEGER},
-         {"ps_availqty", INTEGER},
-         {"ps_supplycost", NUMERIC},
-         {"ps_comment", STRING}}},
-       {"customer",
-        {{"c_custkey", INTEGER},
-         {"c_name", STRING},
-         {"c_address", STRING},
-         {"c_nationkey", INTEGER},
-         {"c_phone", STRING},
-         {"c_acctbal", NUMERIC},
-         {"c_mktsegment", STRING},
-         {"c_comment", STRING}}},
-       {"orders",
-        {{"o_orderkey", BIGINT},
-         {"o_custkey", INTEGER},
-         {"o_orderstatus", CHAR},
-         {"o_totalprice", NUMERIC},
-         {"o_orderdate", DATE},
-         {"o_orderpriority", STRING},
-         {"o_clerk", STRING},
-         {"o_shippriority", INTEGER},
-         {"o_comment", STRING}}},
-       {"lineitem",
-        {
-            {"l_orderkey", BIGINT},
-            {"l_partkey", INTEGER},
-            {"l_suppkey", INTEGER},
-            {"l_linenumber", INTEGER},
-            {"l_quantity", NUMERIC},
-            {"l_extendedprice", NUMERIC},
-            {"l_discount", NUMERIC},
-            {"l_tax", NUMERIC},
-            {"l_returnflag", CHAR},
-            {"l_linestatus", CHAR},
-            {"l_shipdate", DATE},
-            {"l_commitdate", DATE},
-            {"l_receiptdate", DATE},
-            {"l_shipinstruct", STRING},
-            {"l_shipmode", STRING},
-            {"l_comment", STRING},
-        }},
-       {"nation",
-        {
-            {"n_nationkey", INTEGER},
-            {"n_name", STRING},
-            {"n_regionkey", INTEGER},
-            {"n_comment", STRING},
-        }},
-       {"region",
-        {
-            {"r_regionkey", INTEGER},
-            {"r_name", STRING},
-            {"r_comment", STRING},
-        }}};
-
+;
     TPCH() {};
+
+    inline static std::map<std::string,
+                           std::vector<std::pair<std::string, Type>>>
+        schema = {{"part",
+                   {{"p_partkey", INTEGER},
+                    {"p_name", STRING},
+                    {"p_mfgr", STRING},
+                    {"p_brand", STRING},
+                    {"p_type", STRING},
+                    {"p_size", INTEGER},
+                    {"p_container", STRING},
+                    {"p_retailprice", NUMERIC},
+                    {"p_comment", STRING}}},
+                  {"supplier",
+                   {{"s_suppkey", INTEGER},
+                    {"s_name", STRING},
+                    {"s_address", STRING},
+                    {"s_nationkey", INTEGER},
+                    {"s_phone", STRING},
+                    {"s_acctbal", NUMERIC},
+                    {"s_comment", STRING}}},
+                  {"partsupp",
+                   {{"ps_partkey", INTEGER},
+                    {"ps_suppkey", INTEGER},
+                    {"ps_availqty", INTEGER},
+                    {"ps_supplycost", NUMERIC},
+                    {"ps_comment", STRING}}},
+                  {"customer",
+                   {{"c_custkey", INTEGER},
+                    {"c_name", STRING},
+                    {"c_address", STRING},
+                    {"c_nationkey", INTEGER},
+                    {"c_phone", STRING},
+                    {"c_acctbal", NUMERIC},
+                    {"c_mktsegment", STRING},
+                    {"c_comment", STRING}}},
+                  {"orders",
+                   {{"o_orderkey", BIGINT},
+                    {"o_custkey", INTEGER},
+                    {"o_orderstatus", CHAR},
+                    {"o_totalprice", NUMERIC},
+                    {"o_orderdate", DATE},
+                    {"o_orderpriority", STRING},
+                    {"o_clerk", STRING},
+                    {"o_shippriority", INTEGER},
+                    {"o_comment", STRING}}},
+                  {"lineitem",
+                   {
+                       {"l_orderkey", BIGINT},
+                       {"l_partkey", INTEGER},
+                       {"l_suppkey", INTEGER},
+                       {"l_linenumber", INTEGER},
+                       {"l_quantity", NUMERIC},
+                       {"l_extendedprice", NUMERIC},
+                       {"l_discount", NUMERIC},
+                       {"l_tax", NUMERIC},
+                       {"l_returnflag", CHAR},
+                       {"l_linestatus", CHAR},
+                       {"l_shipdate", DATE},
+                       {"l_commitdate", DATE},
+                       {"l_receiptdate", DATE},
+                       {"l_shipinstruct", STRING},
+                       {"l_shipmode", STRING},
+                       {"l_comment", STRING},
+                   }},
+                  {"nation",
+                   {
+                       {"n_nationkey", INTEGER},
+                       {"n_name", STRING},
+                       {"n_regionkey", INTEGER},
+                       {"n_comment", STRING},
+                   }},
+                  {"region",
+                   {
+                       {"r_regionkey", INTEGER},
+                       {"r_name", STRING},
+                       {"r_comment", STRING},
+                   }}};
 };
 
 } // namespace p2c

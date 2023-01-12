@@ -10,7 +10,7 @@ namespace p2c {
 // generic csv parser implementation for tpch types
 namespace csv {
 template <typename T>
-requires requires { T::TAG; }
+requires requires { type_tag<T>::TAG; }
 struct Parser<T> {
   static constexpr char const *TYPE_NAME = TYPE_NAMES[T::TAG];
 

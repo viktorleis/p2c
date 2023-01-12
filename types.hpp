@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cassert>
 #include <limits>
+#include <ostream>
 #include <string>
 #include <string_view>
 
@@ -35,7 +36,7 @@ namespace p2c {
 
     // convert compile-time type to C++ type name
     inline std::string tname(Type t) {
-      if (t >= TYPE_MAX) {
+      if (t < TYPE_MAX) {
         return TYPE_NAMES[t];
       }
       throw "Unknown Type";
@@ -229,11 +230,18 @@ namespace p2c {
       /// Comparison
       inline bool operator>=(const Date &n) const { return value >= n.value; }
       /// Output
-      friend std::ostream &operator<<(std::ostream &out, const Date &value) {
-        return out << value; // XXX
+      friend std::ostream &operator<<(std::ostream &out, const Date &date) {
+        return out << date.value; // XXX
       }
     };
-
+    template <>
+    struct type_tag<Date> {
+        static constexpr Type TAG = DATE;
+    };
+    template <>
+    inline uint64_t HashKey<Date>::operator()(const Date& x) {
+        return murmurHash64(x.value);
+    }
     template <> inline Date stringToType(const char *str, uint32_t strLen) {
       auto iter = str, limit = str + strLen;
       // Trim WS
@@ -321,4 +329,29 @@ namespace p2c {
             });
         }
     };
-}  // namespace p2c
+} // namespace p2c
+
+// --------------------------------------------------------------------------
+// std::hash for types
+// --------------------------------------------------------------------------
+namespace std {
+template <typename T>
+requires requires { p2c::type_tag<T>::TAG; }
+struct hash<T> {
+  std::size_t operator()(const T &k) const {
+    using _hasher = ::p2c::HashKey<T>;
+    static constexpr _hasher h = _hasher();
+    return h(k);
+  }
+};
+
+template <typename ... Args>
+struct hash<std::tuple<Args...>> {
+  std::size_t operator()(const std::tuple<Args...> &k) const {
+    using _hasher = ::p2c::HashKey<std::tuple<Args...>>;
+    static constexpr _hasher h = _hasher();
+    return h(k);
+  }
+};
+
+} // namespace std

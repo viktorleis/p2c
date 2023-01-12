@@ -14,6 +14,7 @@
 #include <string_view>
 #include <sstream>
 #include "types.hpp"
+#include "tpch.hpp"
 
 using namespace std;
 using namespace fmt;
@@ -228,8 +229,8 @@ struct Scan : public Operator {
    // constructor
    Scan(const string& relName) : relName(relName) {
       // get relation info from schema
-      auto it = schema.find(relName);
-      assert(it != schema.end());
+      auto it = TPCH::schema.find(relName);
+      assert(it != TPCH::schema.end());
       auto& rel = it->second;
       // create IUs for all available attributes
       attributes.reserve(rel.size());
@@ -249,7 +250,7 @@ struct Scan : public Operator {
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       for (IU* iu : required)
-         print("db.ensureLoaded<{0}>(db.{1}.{2}, db.{1}.tupleCount \"{1}\", \"{2}\");", tname(iu->type), relName, iu->name);
+         print("db.ensureLoaded<{0}>(db.{1}.{2}, db.{1}.tupleCount, \"{1}\", \"{2}\");", tname(iu->type), relName, iu->name);
       genBlock(format("for (uint64_t i = 0; i != db.{}.tupleCount; i++)", relName), [&]() {
          for (IU* iu : required)
             print("{} {} = db.{}.{}[i];\n", tname(iu->type), iu->varname, relName, iu->name);
@@ -325,7 +326,7 @@ struct Map : public Operator {
 struct Sort : public Operator {
    unique_ptr<Operator> input;
    vector<IU*> keyIUs;
-   IU v{"vector", Type::Int};
+   IU v{"vector", INTEGER};
 
    // constructor
    Sort(unique_ptr<Operator> input, const vector<IU*>& keyIUs) : input(std::move(input)), keyIUs(keyIUs)  {}
@@ -371,7 +372,7 @@ struct GroupBy : public Operator {
    AggFunction aggFn; // aggregation function;
    IU* inputIU; // IU of result
    IU aggIU;
-   IU ht{"ht", Type::Int};
+   IU ht{"ht", INTEGER};
 
    // constructor
    GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs, const string& name, AggFunction aggFn, IU* inputIU) : input(std::move(input)), groupKeyIUs(groupKeyIUs), aggFn(aggFn), inputIU(inputIU), aggIU{name, inputIU->type} {}
@@ -419,7 +420,7 @@ struct HashJoin : public Operator {
    unique_ptr<Operator> left;
    unique_ptr<Operator> right;
    vector<IU*> leftKeyIUs, rightKeyIUs; // XXX: pair?
-   IU ht{"ht", Type::Int};
+   IU ht{"ht", INTEGER};
 
    // constructor
    HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs, const vector<IU*>& rightKeyIUs) :
@@ -482,16 +483,15 @@ unique_ptr<Exp> makeCallExp(const string& fn, IU* iu, int x) {
 int main(int argc, char* argv[]) {
    auto c = make_unique<Scan>("customer");
    IU* ck = c->getIU("c_custkey");
-   IU* cc = c->getIU("c_city");
-   IU* cn = c->getIU("c_nation");
+   IU* cc = c->getIU("c_phone");
    auto sel = make_unique<Selection>(std::move(c), makeCallExp("std::equal_to()", ck, 1));
 
    auto c2 = make_unique<Scan>("customer");
    IU* ck2 = c2->getIU("c_custkey");
-   IU* ca = c2->getIU("c_address");
-   auto j = make_unique<HashJoin>(std::move(sel), std::move(c2), vector<IU*>{{ck, cc}}, vector<IU*>{{ck2, ca}});
+   IU* cn = c2->getIU("c_name");
+   auto j = make_unique<HashJoin>(std::move(sel), std::move(c2), vector<IU*>{{ck, cc}}, vector<IU*>{{ck2, cn}});
 
-   auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus()", ck, 5), "ckNew", Type::Int);
+   auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus()", ck, 5), "ckNew", INTEGER);
    IU* ckNew = m->getIU("ckNew");
 
    auto gb = make_unique<GroupBy>(std::move(m), IUSet({ck, cn}), "ckNewSum", GroupBy::AggFunction::Sum, ckNew);
