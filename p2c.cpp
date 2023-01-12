@@ -277,13 +277,6 @@ struct Scan : public Operator {
             return &iu;
       return nullptr;
    }
-
-   vector<IU*> getIUs(const vector<string>& atts) {
-      vector<IU*> v;
-      for (const string& a : atts)
-         v.push_back(getIU(a));
-      return v;
-   }
 };
 
 // selection operator
