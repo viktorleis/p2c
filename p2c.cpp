@@ -313,7 +313,7 @@ struct Map : public Operator {
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
-      input->produce(required - IUSet({&iu}), [&]() {
+      input->produce((required | exp->iusUsed()) - IUSet({&iu}), [&]() {
             genBlock("", [&]() {
                provideIU(&iu, exp->compile());
                consume();
