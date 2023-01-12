@@ -533,33 +533,67 @@ unique_ptr<Exp> makeCallExp(const string& fn, IU* iu, int x) {
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[]) {
-   auto c = make_unique<Scan>("customer");
-   IU* ck = c->getIU("c_custkey");
-   IU* cc = c->getIU("c_phone");
-   auto sel = make_unique<Selection>(std::move(c), makeCallExp("std::equal_to()", ck, 1));
+   auto n = make_unique<Scan>("nation");
+   //IU* nn = n->getIU("n_name");
+   IU* nr = n->getIU("n_regionkey");
 
-   auto c2 = make_unique<Scan>("customer");
-   IU* ck2 = c2->getIU("c_custkey");
-   IU* cn = c2->getIU("c_name");
-   auto j = make_unique<HashJoin>(std::move(sel), std::move(c2), vector<IU*>{{ck, cc}}, vector<IU*>{{ck2, cn}});
+   auto sel = make_unique<Selection>(std::move(n), makeCallExp("std::less()", nr, 2));
 
-   auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus()", ck, 5), "ckNew", INTEGER);
-   IU* ckNew = m->getIU("ckNew");
+   auto m = make_unique<Map>(std::move(sel), makeCallExp("std::plus()", nr, 5), "nrNew", INTEGER);
+   IU* nrNew = m->getIU("nrNew");
 
-   auto gb = make_unique<GroupBy>(std::move(m), IUSet({ck, cn}));
-   gb->addSum("ckNewSum", ckNew);
+
+   auto r = make_unique<Scan>("region");
+   IU* rn = r->getIU("r_name");
+   IU* rr = r->getIU("r_regionkey");
+
+
+   auto j = make_unique<HashJoin>(std::move(m), std::move(r), vector<IU*>{nr}, vector<IU*>{rr});
+
+   auto gb = make_unique<GroupBy>(std::move(j), IUSet({rn}));
+   gb->addSum("nrNewSum", nrNew); // 30?
    gb->addCount("cnt");
-   IU* sum = gb->getIU("ckNewSum");
+
+   IU* sum = gb->getIU("nrNewSum");
    IU* cnt = gb->getIU("cnt");
 
-   auto s = make_unique<Sort>(std::move(gb), vector<IU*>{{ck, sum}});
+   auto s = make_unique<Sort>(std::move(gb), vector<IU*>{sum});
 
-   vector<IU*> out{{ck, sum, cnt}};
-   s->produce(IUSet(out), [&]() {
-      for (IU* iu : out)
-         print("cout << {} << \" \";", iu->varname);
-      print("cout << endl;\n");
+   auto& op = s;
+
+   std::vector<IU*> out{{rn,sum,cnt}};
+   op->produce(IUSet(out), [&]() {
+     for (IU *iu : out)
+       print("cout << {} << \" \";", iu->varname);
+     print("cout << endl;\n");
    });
+   // auto c = make_unique<Scan>("customer");
+   // IU* ck = c->getIU("c_custkey");
+   // IU* cc = c->getIU("c_phone");
+   // auto sel = make_unique<Selection>(std::move(c), makeCallExp("std::equal_to()", ck, 1));
 
-   return 0;
+   // auto c2 = make_unique<Scan>("customer");
+   // IU* ck2 = c2->getIU("c_custkey");
+   // IU* cn = c2->getIU("c_name");
+   // auto j = make_unique<HashJoin>(std::move(sel), std::move(c2), vector<IU*>{{ck, cc}}, vector<IU*>{{ck2, cn}});
+
+   // auto m = make_unique<Map>(std::move(j), makeCallExp("std::plus()", ck, 5), "ckNew", INTEGER);
+   // IU* ckNew = m->getIU("ckNew");
+
+   // auto gb = make_unique<GroupBy>(std::move(m), IUSet({ck, cn}));
+   // gb->addSum("ckNewSum", ckNew);
+   // gb->addCount("cnt");
+   // IU* sum = gb->getIU("ckNewSum");
+   // IU* cnt = gb->getIU("cnt");
+
+   // auto s = make_unique<Sort>(std::move(gb), vector<IU*>{{ck, sum}});
+
+   // vector<IU*> out{{ck, sum, cnt}};
+   // s->produce(IUSet(out), [&]() {
+   //    for (IU* iu : out)
+   //       print("cout << {} << \" \";", iu->varname);
+   //    print("cout << endl;\n");
+   // });
+
+   // return 0;
 }

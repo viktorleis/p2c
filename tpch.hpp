@@ -105,7 +105,7 @@ public:
     vec<String> r_comment;
     uint64_t tupleCount{0};
   } region;
-;
+
     TPCH() {};
 
     inline static std::map<std::string,
