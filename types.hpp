@@ -54,6 +54,9 @@ namespace p2c {
     template <typename T>
     struct type_tag;
 
+    template <typename T>
+    concept is_db_type = requires { type_tag<T>::TAG; };
+
     // --------------------------------------------------------------------------
     // Char 
     // --------------------------------------------------------------------------

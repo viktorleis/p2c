@@ -160,7 +160,7 @@ struct IUExp : public Exp {
 };
 
 // expression that represent a constant value
-template<typename T> requires requires { type_tag<T>::TAG; }
+template<typename T> requires is_db_type<T>
 struct ConstExp : public Exp {
    T x;
 
@@ -593,17 +593,16 @@ int main(int argc, char* argv[]) {
   // select count(*) from orders where o_orderdate < date '1995-03-15'
   // ------------------------------------------------------------
 
+  std::cout << "//" << stringToType<Date>("1995-03-15", 10) << std::endl;
   auto o = make_unique<Scan>("orders");
   IU *od = o->getIU("o_orderdate");
-  IU *cmt = o->getIU("o_comment");
 
   auto sel = make_unique<Selection>(
-      std::move(o), makeCallExp("std::equal_to()", od, stringToType<Date>("1995-03-15", 10).value));
-  // auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
-  // gb->addCount("cnt");
-  // IU *cnt = gb->getIU("cnt");
-  produceAndPrint(std::move(sel), {od, cmt});
-  std::cout << "//" << stringToType<Date>("1995-03-15", 10) << std::endl;
+      std::move(o), makeCallExp("std::less()", od, stringToType<Date>("1995-03-15", 10).value));
+  auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
+  gb->addCount("cnt");
+  IU *cnt = gb->getIU("cnt");
+  produceAndPrint(std::move(gb), {cnt});
 
   return 0;
 }
