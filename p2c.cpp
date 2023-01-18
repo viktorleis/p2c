@@ -159,14 +159,15 @@ struct IUExp : public Exp {
    IUSet iusUsed() override { return IUSet({iu}); }
 };
 
-// expression that represent a constant integer
-struct ConstIntExp : public Exp {
-   int x;
+// expression that represent a constant value
+template<typename T> requires requires { type_tag<T>::TAG; }
+struct ConstExp : public Exp {
+   T x;
 
    // constructor
-   ConstIntExp(int x) : x(x) {};
+   ConstExp(T x) : x(x) {};
    // destructor
-   ~ConstIntExp() {}
+   ~ConstExp() {}
 
    string compile() override { return format("{}", x); }
    IUSet iusUsed() override { return {}; }
@@ -527,10 +528,18 @@ struct HashJoin : public Operator {
 ////////////////////////////////////////////////////////////////////////////////
 
 // create a function call expression (helper)
-unique_ptr<Exp> makeCallExp(const string& fn, IU* iu, int x) {
+template<typename T> requires requires { type_tag<T>::TAG; }
+unique_ptr<Exp> makeCallExp(const string& fn, IU* iu, const T& x) {
    vector<unique_ptr<Exp>> v;
    v.push_back(make_unique<IUExp>(iu));
-   v.push_back(make_unique<ConstIntExp>(x));
+   v.push_back(make_unique<ConstExp<T>>(x));
+   return make_unique<FnExp>(fn, std::move(v));
+}
+
+template<typename... T>
+unique_ptr<Exp> makeCallExp(const string& fn,  std::unique_ptr<T>... args) {
+   vector<unique_ptr<Exp>> v;
+   (v.push_back(std::move(args)), ...);
    return make_unique<FnExp>(fn, std::move(v));
 }
 
@@ -550,47 +559,51 @@ void produceAndPrint(unique_ptr<Operator> root, const std::vector<IU*>& ius, uns
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[]) {
-   // auto n = make_unique<Scan>("nation");
-   // //IU* nn = n->getIU("n_name");
-   // IU* nr = n->getIU("n_regionkey");
+  // auto n = make_unique<Scan>("nation");
+  // //IU* nn = n->getIU("n_name");
+  // IU* nr = n->getIU("n_regionkey");
 
-   // auto sel = make_unique<Selection>(std::move(n), makeCallExp("std::less()", nr, 2));
+  // auto sel = make_unique<Selection>(std::move(n), makeCallExp("std::less()",
+  // nr, 2));
 
-   // auto m = make_unique<Map>(std::move(sel), makeCallExp("std::plus()", nr, 5), "nrNew", INTEGER);
-   // IU* nrNew = m->getIU("nrNew");
+  // auto m = make_unique<Map>(std::move(sel), makeCallExp("std::plus()", nr,
+  // 5), "nrNew", INTEGER); IU* nrNew = m->getIU("nrNew");
 
-   // auto r = make_unique<Scan>("region");
-   // IU* rn = r->getIU("r_name");
-   // IU* rr = r->getIU("r_regionkey");
+  // auto r = make_unique<Scan>("region");
+  // IU* rn = r->getIU("r_name");
+  // IU* rr = r->getIU("r_regionkey");
 
-   // auto j = make_unique<HashJoin>(std::move(m), std::move(r), vector<IU*>{nr}, vector<IU*>{rr});
+  // auto j = make_unique<HashJoin>(std::move(m), std::move(r), vector<IU*>{nr},
+  // vector<IU*>{rr});
 
-   // auto gb = make_unique<GroupBy>(std::move(j), IUSet({rn}));
-   // gb->addSum("nrNewSum", nrNew); // 30?
-   // gb->addCount("cnt");
+  // auto gb = make_unique<GroupBy>(std::move(j), IUSet({rn}));
+  // gb->addSum("nrNewSum", nrNew); // 30?
+  // gb->addCount("cnt");
 
-   // IU* sum = gb->getIU("nrNewSum");
-   // IU* cnt = gb->getIU("cnt");
+  // IU* sum = gb->getIU("nrNewSum");
+  // IU* cnt = gb->getIU("cnt");
 
-   // auto s = make_unique<Sort>(std::move(gb), vector<IU*>{sum});
+  // auto s = make_unique<Sort>(std::move(gb), vector<IU*>{sum});
 
-   // produceAndPrint(std::move(s), IUSet({rn, sum, cnt}));
+  // produceAndPrint(std::move(s), IUSet({rn, sum, cnt}));
 
-   // ------------------------------------------------------------
-   // Date Bug?
-   // ------------------------------------------------------------
-   // select count(*) from orders where o_orderdate < date '1995-03-15'
-   // ------------------------------------------------------------
+  // ------------------------------------------------------------
+  // Date test; should return 727305 on sf1 according to umbra
+  // ------------------------------------------------------------
+  // select count(*) from orders where o_orderdate < date '1995-03-15'
+  // ------------------------------------------------------------
 
-        auto o = make_unique<Scan>("orders");
-        IU* od = o->getIU("o_orderdate");
+  auto o = make_unique<Scan>("orders");
+  IU *od = o->getIU("o_orderdate");
+  IU *cmt = o->getIU("o_comment");
 
-        auto sel = make_unique<Selection>(std::move(o), makeCallExp("std::less()", od, stringToType<Date>("1995-03-15", 10).value));
-        auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
-        gb->addCount("cnt");
-        IU* cnt = gb->getIU("cnt");
-        produceAndPrint(std::move(gb), {cnt});
-        std::cout << "//" << stringToType<Date>("1995-03-15", 10) << std::endl;
+  auto sel = make_unique<Selection>(
+      std::move(o), makeCallExp("std::equal_to()", od, stringToType<Date>("1995-03-15", 10).value));
+  // auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
+  // gb->addCount("cnt");
+  // IU *cnt = gb->getIU("cnt");
+  produceAndPrint(std::move(sel), {od, cmt});
+  std::cout << "//" << stringToType<Date>("1995-03-15", 10) << std::endl;
 
-   return 0;
+  return 0;
 }

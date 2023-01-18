@@ -393,6 +393,6 @@ struct fmt::formatter<p2c::Date> {
       // ctx.out() is an output iterator to write to.
       unsigned year, month, day;
       p2c::Date::fromInt(d.value, year, month, day);
-      return fmt::format_to(ctx.out(), "({:04}-{:04}-{:04})", year, month, day);
+      return fmt::format_to(ctx.out(), "({:04}-{:02}-{:02})", year, month, day);
   }
 };
