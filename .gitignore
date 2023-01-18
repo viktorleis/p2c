@@ -3,3 +3,4 @@ p2c
 .gdb_history
 gen.cpp
 query
+*.out

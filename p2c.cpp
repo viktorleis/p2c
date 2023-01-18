@@ -535,11 +535,11 @@ unique_ptr<Exp> makeCallExp(const string& fn, IU* iu, int x) {
 }
 
 // Print
-void produceAndPrint(unique_ptr<Operator> root, const IUSet& ius, unsigned perfRepeat = 2) {
+void produceAndPrint(unique_ptr<Operator> root, const std::vector<IU*>& ius, unsigned perfRepeat = 2) {
   genBlock(
       format("for (uint64_t {0} = 0; {0} != {1}; {0}++)", genVar("perfRepeat"), perfRepeat - 1),
       [&]() {
-        root->produce(ius, [&]() {
+        root->produce(IUSet(ius), [&]() {
           for (IU *iu : ius)
             print("cout << {} << \" \";", iu->varname);
           print("cout << endl;\n");
@@ -550,31 +550,47 @@ void produceAndPrint(unique_ptr<Operator> root, const IUSet& ius, unsigned perfR
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[]) {
-   auto n = make_unique<Scan>("nation");
-   //IU* nn = n->getIU("n_name");
-   IU* nr = n->getIU("n_regionkey");
+   // auto n = make_unique<Scan>("nation");
+   // //IU* nn = n->getIU("n_name");
+   // IU* nr = n->getIU("n_regionkey");
 
-   auto sel = make_unique<Selection>(std::move(n), makeCallExp("std::less()", nr, 2));
+   // auto sel = make_unique<Selection>(std::move(n), makeCallExp("std::less()", nr, 2));
 
-   auto m = make_unique<Map>(std::move(sel), makeCallExp("std::plus()", nr, 5), "nrNew", INTEGER);
-   IU* nrNew = m->getIU("nrNew");
+   // auto m = make_unique<Map>(std::move(sel), makeCallExp("std::plus()", nr, 5), "nrNew", INTEGER);
+   // IU* nrNew = m->getIU("nrNew");
 
-   auto r = make_unique<Scan>("region");
-   IU* rn = r->getIU("r_name");
-   IU* rr = r->getIU("r_regionkey");
+   // auto r = make_unique<Scan>("region");
+   // IU* rn = r->getIU("r_name");
+   // IU* rr = r->getIU("r_regionkey");
 
-   auto j = make_unique<HashJoin>(std::move(m), std::move(r), vector<IU*>{nr}, vector<IU*>{rr});
+   // auto j = make_unique<HashJoin>(std::move(m), std::move(r), vector<IU*>{nr}, vector<IU*>{rr});
 
-   auto gb = make_unique<GroupBy>(std::move(j), IUSet({rn}));
-   gb->addSum("nrNewSum", nrNew); // 30?
-   gb->addCount("cnt");
+   // auto gb = make_unique<GroupBy>(std::move(j), IUSet({rn}));
+   // gb->addSum("nrNewSum", nrNew); // 30?
+   // gb->addCount("cnt");
 
-   IU* sum = gb->getIU("nrNewSum");
-   IU* cnt = gb->getIU("cnt");
+   // IU* sum = gb->getIU("nrNewSum");
+   // IU* cnt = gb->getIU("cnt");
 
-   auto s = make_unique<Sort>(std::move(gb), vector<IU*>{sum});
+   // auto s = make_unique<Sort>(std::move(gb), vector<IU*>{sum});
 
-   produceAndPrint(std::move(s), IUSet({rn, sum, cnt}));
+   // produceAndPrint(std::move(s), IUSet({rn, sum, cnt}));
+
+   // ------------------------------------------------------------
+   // Date Bug?
+   // ------------------------------------------------------------
+   // select count(*) from orders where o_orderdate < date '1995-03-15'
+   // ------------------------------------------------------------
+
+        auto o = make_unique<Scan>("orders");
+        IU* od = o->getIU("o_orderdate");
+
+        auto sel = make_unique<Selection>(std::move(o), makeCallExp("std::less()", od, stringToType<Date>("1995-03-15", 10).value));
+        auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
+        gb->addCount("cnt");
+        IU* cnt = gb->getIU("cnt");
+        produceAndPrint(std::move(gb), {cnt});
+        std::cout << "//" << stringToType<Date>("1995-03-15", 10) << std::endl;
 
    return 0;
 }

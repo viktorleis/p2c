@@ -7,6 +7,7 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <fmt/format.h>
 
 namespace p2c {
 
@@ -31,7 +32,7 @@ namespace p2c {
     // --------------------------------------------------------------------------
 
     enum Type : uint8_t { INTEGER, NUMERIC, CHAR, STRING, BIGINT, BOOL, DATE, UNDEFINED };
-    constexpr char const* TYPE_NAMES[] = {"Integer", "Numeric", "Char", "String", "BigInt", "bool", "date"};
+    constexpr char const* TYPE_NAMES[] = {"Integer", "Numeric", "Char", "String", "BigInt", "bool", "Date"};
     using Tid = uint64_t;
 
     // convert compile-time type to C++ type name
@@ -206,7 +207,6 @@ namespace p2c {
     // --------------------------------------------------------------------------
     // Date 
     // --------------------------------------------------------------------------
-
     class Date {
     public:
       static constexpr Type TAG = DATE;
@@ -214,6 +214,7 @@ namespace p2c {
 
       Date() {}
       Date(int32_t value) : value(value) {}
+      Date(unsigned year, unsigned month, unsigned day) : Date(toInt(year, month, day)) {}
 
       /// Hash
       inline uint64_t hash() const;
@@ -231,12 +232,41 @@ namespace p2c {
       inline bool operator>=(const Date &n) const { return value >= n.value; }
       /// Output
       friend std::ostream &operator<<(std::ostream &out, const Date &date) {
-        return out << date.value; // XXX
+        unsigned year, month, day;
+        fromInt(date.value, year, month, day);
+        char buffer[30];
+        snprintf(buffer, sizeof(buffer), "%04u-%02u-%02u", year, month, day);
+        return out << buffer;
+      }
+
+      // Julian Day Algorithm from the Calendar FAQ
+      static void fromInt(unsigned date, unsigned &year, unsigned &month,
+                          unsigned &day) {
+        unsigned a = date + 32044;
+        unsigned b = (4 * a + 3) / 146097;
+        unsigned c = a - ((146097 * b) / 4);
+        unsigned d = (4 * c + 3) / 1461;
+        unsigned e = c - ((1461 * d) / 4);
+        unsigned m = (5 * e + 2) / 153;
+
+        day = e - ((153 * m + 2) / 5) + 1;
+        month = m + 3 - (12 * (m / 10));
+        year = (100 * b) + d - 4800 + (m / 10);
+      }
+
+      // Julian Day Algorithm from the Calendar FAQ
+      static unsigned toInt(unsigned year, unsigned month, unsigned day) {
+        unsigned a = (14 - month) / 12;
+        unsigned y = year + 4800 - a;
+        unsigned m = month + (12 * a) - 3;
+        return day + ((153 * m + 2) / 5) + (365 * y) + (y / 4) - (y / 100) +
+               (y / 400) - 32045;
       }
     };
+
     template <>
     struct type_tag<Date> {
-        static constexpr Type TAG = DATE;
+      static constexpr Type TAG = DATE;
     };
     template <>
     inline uint64_t HashKey<Date>::operator()(const Date& x) {
@@ -290,15 +320,7 @@ namespace p2c {
       if ((year > 9999) || (month < 1) || (month > 12) || (day < 1) ||
           (day > 31))
         throw "invalid date format";
-      // Julian Day
-      unsigned a = (14 - month) / 12;
-      unsigned y = year + 4800 - a;
-      unsigned m = month + (12 * a) - 3;
-
-      Date d;
-      d.value = ((153 * m + 2) / 5) + (365 * y) + (y / 4) - (y / 100) +
-                (y / 400) - 32045;
-      return d;
+      return Date(year, month, day);
     }
 
     // --------------------------------------------------------------------------
@@ -355,3 +377,22 @@ struct hash<std::tuple<Args...>> {
 };
 
 } // namespace std
+
+// --------------------------------------------------------------------------
+// custom c++20 formatter
+// from https://fmt.dev/latest/api.html#udt
+// --------------------------------------------------------------------------
+template <>
+struct fmt::formatter<p2c::Date> {
+  // Parses format specifications; we have none at the moment
+  constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) {
+      return ctx.end();
+  }
+  template <typename FormatContext>
+  auto format(const p2c::Date& d, FormatContext& ctx) const -> decltype(ctx.out()) {
+      // ctx.out() is an output iterator to write to.
+      unsigned year, month, day;
+      p2c::Date::fromInt(d.value, year, month, day);
+      return fmt::format_to(ctx.out(), "({:04}-{:04}-{:04})", year, month, day);
+  }
+};
