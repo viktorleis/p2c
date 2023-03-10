@@ -14,7 +14,13 @@ using namespace p2c;
 struct Database : TPCH {
   std::string basepath;
 
-  Database(const std::string &path) : basepath(path) {}
+  Database(const std::string &path) : basepath(path) {
+    mapAllColumns();
+  }
+
+  void mapAllColumns() {
+    // TODO
+  }
 
   template <typename T>
   void ensureLoaded(vec<T> &into, uint64_t &cnt, const std::string &relname,
