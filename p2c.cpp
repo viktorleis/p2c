@@ -209,10 +209,11 @@ struct FnExp : public Exp {
 // generate curly-brace block of C++ code (helper function)
 template<class Fn>
 void genBlock(const string& str, Fn fn, const std::source_location& location = std::source_location::current()) {
-   cout << str << "{ //" << location.line() << endl;
+   cout << str << "{ //" << location.line() << "; " << location.function_name() << endl;
    fn();
    cout << "}" << endl;
 }
+
 
 // consumer callback function
 typedef std::function<void(void)> ConsumerFn;
