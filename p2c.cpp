@@ -10,6 +10,7 @@
 #include <vector>
 #include <fmt/core.h>
 #include <fmt/ranges.h>
+#include <source_location>
 #include <string>
 #include <string_view>
 #include <sstream>
@@ -207,8 +208,8 @@ struct FnExp : public Exp {
 
 // generate curly-brace block of C++ code (helper function)
 template<class Fn>
-void genBlock(const string& str, Fn fn) {
-   cout << str << "{" << endl;
+void genBlock(const string& str, Fn fn, const std::source_location& location = std::source_location::current()) {
+   cout << str << "{ //" << location.line() << endl;
    fn();
    cout << "}" << endl;
 }
