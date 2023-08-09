@@ -11,36 +11,11 @@
 using namespace std;
 using namespace p2c;
 
-struct Database : TPCH {
-  std::string basepath;
-
-  Database(const std::string &path) : basepath(path) {
-    mapAllColumns();
-  }
-
-  void mapAllColumns() {
-    // TODO
-  }
-
-  template <typename T>
-  void ensureLoaded(vec<T> &into, uint64_t &cnt, const std::string &relname,
-                    const std::string &colname) {
-    // table is already loaded; don't have to reload
-    if (into.is_backed()) {
-      assert(cnt);
-      return;
-    }
-    // load table and store in into
-    std::string colpath = basepath + '/' + relname + '/' + colname + ".bin";
-    vec<T> file = vec<T>(colpath.c_str());
-    assert(cnt == 0 || cnt == file.size());
-    cnt = file.size();
-    into = std::move(file);
-  };
-};
-
 int main(int argc, char** argv) {
-   Database db(argc >= 2 ? argv[1] : "/opt/tpch/sf1");
+   TPCH db(argc >= 2 ? argv[1] : "/opt/tpch-p2c/sf10");
+   unsigned run_count = argc >= 3 ? atoi(argv[2]) : 1;
+   for (unsigned run = 0; run < run_count; ++run) {
 #include "gen.cpp"
+   }
    return 0;
 }

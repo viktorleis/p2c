@@ -261,7 +261,6 @@ struct Scan : public Operator {
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       for (IU* iu : required)
-         print("db.ensureLoaded<{0}>(db.{1}.{2}, db.{1}.tupleCount, \"{1}\", \"{2}\");", tname(iu->type), relName, iu->name);
       genBlock(format("for (uint64_t i = 0; i != db.{}.tupleCount; i++)", relName), [&]() {
          for (IU* iu : required)
             provideIU(iu, format("db.{}.{}[i]", relName, iu->name));

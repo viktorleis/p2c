@@ -145,6 +145,7 @@ template <typename T> struct DataColumn : FileMapping<T> {
         count(this->file_size / sizeof(T)) {
     assert(this->file_size % sizeof(T) == 0);
   }
+  DataColumn(const std::string& filename, int flags = 0, uintptr_t size = 0) : DataColumn(filename.data(), flags, size) {}
 
   DataColumn(const DataColumn &) = delete;
   DataColumn(DataColumn &&other) { *this = std::move(other); }
@@ -199,6 +200,7 @@ struct DataColumn<std::string_view> : FileMapping<variable_size::StringData> {
   DataColumn() : FileMapping<Data>(){}
   DataColumn(const char *filename, int flags = 0, uintptr_t size = 0)
       : FileMapping<Data>(filename, flags, size) {}
+  DataColumn(const std::string& filename, int flags = 0, uintptr_t size = 0) : DataColumn(filename.data(), flags, size) {}
 
   DataColumn(const DataColumn &other) = delete;
   DataColumn(DataColumn &&other) : FileMapping<Data>(std::move(other)) {}
