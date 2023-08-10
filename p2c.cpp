@@ -260,7 +260,6 @@ struct Scan : public Operator {
    }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
-      for (IU* iu : required)
       genBlock(format("for (uint64_t i = 0; i != db.{}.tupleCount; i++)", relName), [&]() {
          for (IU* iu : required)
             provideIU(iu, format("db.{}.{}[i]", relName, iu->name));
@@ -318,11 +317,11 @@ struct Map : public Operator {
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       input->produce((required | exp->iusUsed()) - IUSet({&iu}), [&]() {
-            genBlock("", [&]() {
-               provideIU(&iu, exp->compile());
-               consume();
-            });
+         genBlock("", [&]() {
+            provideIU(&iu, exp->compile());
+            consume();
          });
+      });
    }
 
    IU* getIU(const string& attName) {
@@ -554,60 +553,63 @@ unique_ptr<Exp> makeCallExp(const string& fn,  std::unique_ptr<T>... args) {
 
 // Print
 void produceAndPrint(unique_ptr<Operator> root, const std::vector<IU*>& ius, unsigned perfRepeat = 2) {
-  genBlock(
+   genBlock(
       format("for (uint64_t {0} = 0; {0} != {1}; {0}++)", genVar("perfRepeat"), perfRepeat - 1),
       [&]() {
-        root->produce(IUSet(ius), [&]() {
-          for (IU *iu : ius)
-            print("cout << {} << \" \";", iu->varname);
-          print("cout << endl;\n");
-        });
+         root->produce(IUSet(ius), [&]() {
+            for (IU *iu : ius)
+               print("cout << {} << \" \";", iu->varname);
+            print("cout << endl;\n");
+         });
       });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[]) {
-  // ------------------------------------------------------------
-  // Date test; should return 727305 on sf1 according to umbra
-  // ------------------------------------------------------------
-  // select count(*) from orders where o_orderdate < date '1995-03-15'
-  // ------------------------------------------------------------
-  {
-      std::cout << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
-      auto o = make_unique<Scan>("orders");
-      IU* od = o->getIU("o_orderdate");
-      IU *op = o->getIU("o_totalprice");
+    // ------------------------------------------------------------
+    // Date test; should return 727305 on sf1 according to umbra
+    // ------------------------------------------------------------
+    // select count(*) from orders where o_orderdate < date '1995-03-15'
+    // ------------------------------------------------------------
 
-      auto sel = make_unique<Selection>(
-          std::move(o), makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
-      auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
-      gb->addCount("cnt");
-      gb->addMin("min", op);
-      gb->addSum("sum", op);
+    {
+        std::cout << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
+        auto o = make_unique<Scan>("orders");
+        IU* od = o->getIU("o_orderdate");
+        IU* op = o->getIU("o_totalprice");
 
-      IU* cnt_ = gb->getIU("cnt");
-      IU* min_ = gb->getIU("min");
-      IU* sum_ = gb->getIU("sum");
-      produceAndPrint(std::move(gb), {cnt_, min_, sum_});
-  }
-  print("std::cout << \"//////\" << std::endl;");
-  {
-      auto o = make_unique<Scan>("orders");
-      IU* od = o->getIU("o_orderdate");
-      IU* op = o->getIU("o_totalprice");
+        auto sel = make_unique<Selection>(
+            std::move(o),
+            makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
+        auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
+        gb->addCount("cnt");
+        gb->addMin("min", op);
+        gb->addSum("sum", op);
 
-      auto sel = make_unique<Selection>(
-          std::move(o), makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
+        IU* cnt_ = gb->getIU("cnt");
+        IU* min_ = gb->getIU("min");
+        IU* sum_ = gb->getIU("sum");
+        produceAndPrint(std::move(gb), {cnt_, min_, sum_});
+    }
+    print("std::cout << \"//////\" << std::endl;");
+    {
+        auto o = make_unique<Scan>("orders");
+        IU* od = o->getIU("o_orderdate");
+        IU* op = o->getIU("o_totalprice");
 
-      auto gb = make_unique<GroupBy>(std::move(sel), IUSet({od}));
-      gb->addCount("count");
-      gb->addSum("totalprice", op);
-      auto cnt = gb->getIU("count"), sum = gb->getIU("totalprice");
+        auto sel = make_unique<Selection>(
+            std::move(o),
+            makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
 
-      auto sort = make_unique<Sort>(std::move(gb), std::vector<IU*>({od}));
-      produceAndPrint(std::move(sort), {od, cnt, sum});
-  }
+        auto gb = make_unique<GroupBy>(std::move(sel), IUSet({od}));
+        gb->addCount("count");
+        gb->addSum("totalprice", op);
+        auto cnt = gb->getIU("count"), sum = gb->getIU("totalprice");
 
-  return 0;
+        auto sort = make_unique<Sort>(std::move(gb), std::vector<IU*>({od}));
+        produceAndPrint(std::move(sort), {od, cnt, sum});
+    }
+
+    return 0;
 }
