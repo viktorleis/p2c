@@ -86,6 +86,8 @@ struct IUSet {
    explicit IUSet(const vector<IU*>& vv) {
       v = vv;
       sort(v.begin(), v.end());
+      // check that there are no duplicates
+      assert(adjacent_find(v.begin(), v.end()) == v.end());
    }
 
    // iterate over IUs
