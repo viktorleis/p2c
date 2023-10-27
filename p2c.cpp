@@ -86,6 +86,8 @@ struct IUSet {
    explicit IUSet(const vector<IU*>& vv) {
       v = vv;
       sort(v.begin(), v.end());
+      // check that there are no duplicates
+      assert(adjacent_find(v.begin(), v.end()) == v.end());
    }
 
    // iterate over IUs
@@ -370,7 +372,7 @@ struct Sort : public Operator {
 
 // group by operator
 struct GroupBy : public Operator {
-   enum AggFunction { Sum, Count };
+   enum AggFunction { Sum, Count, Min };
 
    struct Aggregate {
       AggFunction aggFn; // aggregate function
@@ -397,6 +399,10 @@ struct GroupBy : public Operator {
       aggs.push_back({AggFunction::Sum, inputIU, {name, inputIU->type}});
    }
 
+   void addMin(const string& name, IU* inputIU) {
+      aggs.push_back({AggFunction::Min, inputIU, {name, inputIU->type}});
+   }
+
    vector<IU*> resultIUs() {
       vector<IU*> v;
       for (auto&[fn, inputIU, resultIU] : aggs)
@@ -404,11 +410,11 @@ struct GroupBy : public Operator {
       return v;
    }
 
-   vector<IU*> inputIUs() {
-      vector<IU*> v;
+   IUSet inputIUs() {
+      IUSet v;
       for (auto&[fn, inputIU, resultIU] : aggs)
          if (inputIU)
-            v.push_back(inputIU);
+            v.add(inputIU);
       return v;
    }
 
@@ -419,7 +425,7 @@ struct GroupBy : public Operator {
    void produce(const IUSet& required, ConsumerFn consume) override {
       // build hash table
       print("unordered_map<tuple<{}>, tuple<{}>> {};\n", formatTypes(groupKeyIUs.v), formatTypes(resultIUs()), ht.varname);
-      input->produce(groupKeyIUs | IUSet(inputIUs()), [&]() {
+      input->produce(groupKeyIUs | inputIUs(), [&]() {
          // insert tuple into hash table
          print("auto it = {}.find({{{}}});\n", ht.varname, formatVarnames(groupKeyIUs.v));
          genBlock(format("if (it == {}.end())", ht.varname), [&]() {
@@ -427,6 +433,7 @@ struct GroupBy : public Operator {
             for (auto&[fn, inputIU, resultIU] : aggs) {
                switch (fn) {
                   case (AggFunction::Sum): initValues.push_back(inputIU->varname); break;
+                  case (AggFunction::Min): initValues.push_back(inputIU->varname); break;
                   case (AggFunction::Count): initValues.push_back("1"); break;
                }
             }
@@ -439,6 +446,7 @@ struct GroupBy : public Operator {
             for (auto&[fn, inputIU, resultIU] : aggs) {
                switch (fn) {
                   case (AggFunction::Sum): print("get<{}>(it->second) += {};\n", i, inputIU->varname); break;
+                  case (AggFunction::Min): print("get<{}>(it->second) = std::min(get<{}>(it->second), {});\n", i, i, inputIU->varname); break;
                   case (AggFunction::Count): print("get<{}>(it->second)++;\n", i); break;
                }
                i++;
@@ -594,13 +602,17 @@ int main(int argc, char* argv[]) {
   std::cout << "//" << stringToType<Date>("1995-03-15", 10) << std::endl;
   auto o = make_unique<Scan>("orders");
   IU *od = o->getIU("o_orderdate");
+  IU *op = o->getIU("o_totalprice");
 
   auto sel = make_unique<Selection>(
       std::move(o), makeCallExp("std::less()", od, stringToType<Date>("1995-03-15", 10).value));
   auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
-  gb->addCount("cnt");
-  IU *cnt = gb->getIU("cnt");
-  produceAndPrint(std::move(gb), {cnt});
+  gb->addSum("sum", op);
+  gb->addMin("min", op);
+
+  IU *min_ = gb->getIU("min");
+  IU *sum_ = gb->getIU("sum");
+  produceAndPrint(std::move(gb), {min_, sum_});
 
   return 0;
 }
