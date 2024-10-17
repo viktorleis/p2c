@@ -1,8 +1,11 @@
 #!/bin/bash
 
+sf=${1:-"1"}
+
 mkdir input
 cd tpch-dbgen || exit
-./dbgen
+test -f dbgen || ( git submodule update --init .; make )
+./dbgen -s"$sf"
 chmod +rw nation.tbl
 chmod -x nation.tbl
 mv -f ./*.tbl ../input
