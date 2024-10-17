@@ -4,3 +4,5 @@ p2c
 gen.cpp
 query
 *.out
+data-generator/input
+data-generator/output

@@ -9,10 +9,9 @@
 using namespace p2c;
 
 int main(int argc, char *argv[]) {
-  // env var INPUT with directory where dbgen .tbl files reside
-  // !! with trailing slash !!
-    auto cfg = read_config();
-    auto iprefix = cfg.input;
+  // takes one argument: the directory containing all database tables
+    assert(argc == 2);
+    std::string iprefix(argv[1]);
     // orders
     {
       orders::reader reader("output/orders/", (iprefix + "orders.tbl").c_str(), orders_c.data());

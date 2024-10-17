@@ -7,15 +7,6 @@
 
 namespace p2c {
 static constexpr char delim = '|';
-struct RunConfig {
-  std::string input;
-};
-
-RunConfig read_config() {
-  auto file = getenv("INPUT");
-  assert(file);
-  return RunConfig{.input = file};
-}
 
 template <typename T> struct ColumnOutput {
   using value_t = T;
