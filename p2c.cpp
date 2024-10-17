@@ -172,7 +172,13 @@ struct ConstExp : public Exp {
    // destructor
    ~ConstExp() {}
 
-   string compile() override { return format("{}", x); }
+   string compile() override {
+      if constexpr (type_tag<T>::tag == Type::String) {
+         return format("\"{}\"", x);  // Add quotes for strings
+      } else {
+         return format("{}", x);
+      }
+    }
    IUSet iusUsed() override { return {}; }
 };
 
@@ -568,9 +574,17 @@ void produceAndPrint(unique_ptr<Operator> root, const std::vector<IU*>& ius, uns
 
 int main(int argc, char* argv[]) {
     // ------------------------------------------------------------
-    // Date test; should return 727305 on sf1 according to umbra
+    // Simple test query; should return the following on sf1 according to umbra:
+    //   O 58 1333.79 2373761.38
+    //   P 1005 6765.52 187335496.90
+    //   F 144619 866.90 21856547600.45
     // ------------------------------------------------------------
-    // select count(*) from orders where o_orderdate < date '1995-03-15'
+    //   select o_orderstatus, count(*), min(o_totalprice), sum(o_totalprice)
+    //   from orders
+    //   where o_orderdate < date '1995-03-15'
+    //     and o_orderpriority = '1-URGENT'
+    //   group by o_orderstatus
+    //   order by count(*)
     // ------------------------------------------------------------
 
     {
@@ -578,11 +592,16 @@ int main(int argc, char* argv[]) {
         auto o = make_unique<Scan>("orders");
         IU* od = o->getIU("o_orderdate");
         IU* op = o->getIU("o_totalprice");
+        IU* os = o->getIU("o_orderstatus");
+        IU* oprio = o->getIU("o_orderpriority");
+
+        std::string prio = "1-URGENT";
 
         auto sel = make_unique<Selection>(
             std::move(o),
             makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
-        auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
+        sel = make_unique<Selection>(std::move(sel), makeCallExp("std::equal_to()", oprio, std::string_view(prio)));
+        auto gb = make_unique<GroupBy>(std::move(sel), IUSet({os}));
         gb->addCount("cnt");
         gb->addMin("min", op);
         gb->addSum("sum", op);
@@ -590,26 +609,9 @@ int main(int argc, char* argv[]) {
         IU* cnt_ = gb->getIU("cnt");
         IU* min_ = gb->getIU("min");
         IU* sum_ = gb->getIU("sum");
-        produceAndPrint(std::move(gb), {cnt_, min_, sum_});
+
+        auto sort = make_unique<Sort>(std::move(gb), std::vector<IU*>({cnt_}));
+        produceAndPrint(std::move(sort), {os, cnt_, min_, sum_});
     }
-    print("std::cout << \"//////\" << std::endl;");
-    {
-        auto o = make_unique<Scan>("orders");
-        IU* od = o->getIU("o_orderdate");
-        IU* op = o->getIU("o_totalprice");
-
-        auto sel = make_unique<Selection>(
-            std::move(o),
-            makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
-
-        auto gb = make_unique<GroupBy>(std::move(sel), IUSet({od}));
-        gb->addCount("count");
-        gb->addSum("totalprice", op);
-        auto cnt = gb->getIU("count"), sum = gb->getIU("totalprice");
-
-        auto sort = make_unique<Sort>(std::move(gb), std::vector<IU*>({od}));
-        produceAndPrint(std::move(sort), {od, cnt, sum});
-    }
-
     return 0;
 }

@@ -48,7 +48,7 @@ class TPCH : DatabaseAutoload {
         vec<double> p_retailprice         {this, "p_retailprice"};
         vec<std::string_view> p_comment   {this, "p_comment"};
         uint64_t tupleCount               {p_partkey.size()};
-    } Part{{this, "part"}};
+    } part{{this, "part"}};
 
     struct : Relation {
         vec<int32_t> s_suppkey          {this, "s_suppkey"};
