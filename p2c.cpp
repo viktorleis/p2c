@@ -10,6 +10,7 @@
 #include <vector>
 #include <fmt/core.h>
 #include <fmt/ranges.h>
+#include <source_location>
 #include <string>
 #include <string_view>
 #include <sstream>
@@ -162,7 +163,7 @@ struct IUExp : public Exp {
 };
 
 // expression that represent a constant value
-template<typename T> requires is_db_type<T>
+template<typename T> requires is_p2c_type<T>
 struct ConstExp : public Exp {
    T x;
 
@@ -207,11 +208,12 @@ struct FnExp : public Exp {
 
 // generate curly-brace block of C++ code (helper function)
 template<class Fn>
-void genBlock(const string& str, Fn fn) {
-   cout << str << "{" << endl;
+void genBlock(const string& str, Fn fn, const std::source_location& location = std::source_location::current()) {
+   cout << str << "{ //" << location.line() << "; " << location.function_name() << endl;
    fn();
    cout << "}" << endl;
 }
+
 
 // consumer callback function
 typedef std::function<void(void)> ConsumerFn;
@@ -315,11 +317,11 @@ struct Map : public Operator {
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       input->produce((required | exp->iusUsed()) - IUSet({&iu}), [&]() {
-            genBlock("", [&]() {
-               provideIU(&iu, exp->compile());
-               consume();
-            });
+         genBlock("", [&]() {
+            provideIU(&iu, exp->compile());
+            consume();
          });
+      });
    }
 
    IU* getIU(const string& attName) {
@@ -333,7 +335,7 @@ struct Map : public Operator {
 struct Sort : public Operator {
    unique_ptr<Operator> input;
    vector<IU*> keyIUs;
-   IU v{"vector", UNDEFINED};
+   IU v{"vector", Type::Undefined};
 
    // constructor
    Sort(unique_ptr<Operator> input, const vector<IU*>& keyIUs) : input(std::move(input)), keyIUs(keyIUs)  {}
@@ -383,7 +385,7 @@ struct GroupBy : public Operator {
    unique_ptr<Operator> input;
    IUSet groupKeyIUs;
    vector<Aggregate> aggs;
-   IU ht{"aggHT", UNDEFINED};
+   IU ht{"aggHT", Type::Undefined};
 
    // constructor
    GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs) : input(std::move(input)), groupKeyIUs(groupKeyIUs) {}
@@ -392,7 +394,7 @@ struct GroupBy : public Operator {
    ~GroupBy() {}
 
    void addCount(const string& name) {
-      aggs.push_back({AggFunction::Count, nullptr, {name, INTEGER}});
+      aggs.push_back({AggFunction::Count, nullptr, {name, Type::Integer}});
    }
 
    void addSum(const string& name, IU* inputIU) {
@@ -483,7 +485,7 @@ struct HashJoin : public Operator {
    unique_ptr<Operator> left;
    unique_ptr<Operator> right;
    vector<IU*> leftKeyIUs, rightKeyIUs;
-   IU ht{"joinHT", UNDEFINED};
+   IU ht{"joinHT", Type::Undefined};
 
    // constructor
    HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs, const vector<IU*>& rightKeyIUs) :
@@ -534,7 +536,7 @@ struct HashJoin : public Operator {
 ////////////////////////////////////////////////////////////////////////////////
 
 // create a function call expression (helper)
-template<typename T> requires requires { type_tag<T>::TAG; }
+template<typename T> requires is_p2c_type<T>
 unique_ptr<Exp> makeCallExp(const string& fn, IU* iu, const T& x) {
    vector<unique_ptr<Exp>> v;
    v.push_back(make_unique<IUExp>(iu));
@@ -551,68 +553,63 @@ unique_ptr<Exp> makeCallExp(const string& fn,  std::unique_ptr<T>... args) {
 
 // Print
 void produceAndPrint(unique_ptr<Operator> root, const std::vector<IU*>& ius, unsigned perfRepeat = 2) {
-  genBlock(
+   genBlock(
       format("for (uint64_t {0} = 0; {0} != {1}; {0}++)", genVar("perfRepeat"), perfRepeat - 1),
       [&]() {
-        root->produce(IUSet(ius), [&]() {
-          for (IU *iu : ius)
-            print("cout << {} << \" \";", iu->varname);
-          print("cout << endl;\n");
-        });
+         root->produce(IUSet(ius), [&]() {
+            for (IU *iu : ius)
+               print("cout << {} << \" \";", iu->varname);
+            print("cout << endl;\n");
+         });
       });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[]) {
-  // auto n = make_unique<Scan>("nation");
-  // //IU* nn = n->getIU("n_name");
-  // IU* nr = n->getIU("n_regionkey");
+    // ------------------------------------------------------------
+    // Date test; should return 727305 on sf1 according to umbra
+    // ------------------------------------------------------------
+    // select count(*) from orders where o_orderdate < date '1995-03-15'
+    // ------------------------------------------------------------
 
-  // auto sel = make_unique<Selection>(std::move(n), makeCallExp("std::less()",
-  // nr, 2));
+    {
+        std::cout << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
+        auto o = make_unique<Scan>("orders");
+        IU* od = o->getIU("o_orderdate");
+        IU* op = o->getIU("o_totalprice");
 
-  // auto m = make_unique<Map>(std::move(sel), makeCallExp("std::plus()", nr,
-  // 5), "nrNew", INTEGER); IU* nrNew = m->getIU("nrNew");
+        auto sel = make_unique<Selection>(
+            std::move(o),
+            makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
+        auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
+        gb->addCount("cnt");
+        gb->addMin("min", op);
+        gb->addSum("sum", op);
 
-  // auto r = make_unique<Scan>("region");
-  // IU* rn = r->getIU("r_name");
-  // IU* rr = r->getIU("r_regionkey");
+        IU* cnt_ = gb->getIU("cnt");
+        IU* min_ = gb->getIU("min");
+        IU* sum_ = gb->getIU("sum");
+        produceAndPrint(std::move(gb), {cnt_, min_, sum_});
+    }
+    print("std::cout << \"//////\" << std::endl;");
+    {
+        auto o = make_unique<Scan>("orders");
+        IU* od = o->getIU("o_orderdate");
+        IU* op = o->getIU("o_totalprice");
 
-  // auto j = make_unique<HashJoin>(std::move(m), std::move(r), vector<IU*>{nr},
-  // vector<IU*>{rr});
+        auto sel = make_unique<Selection>(
+            std::move(o),
+            makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
 
-  // auto gb = make_unique<GroupBy>(std::move(j), IUSet({rn}));
-  // gb->addSum("nrNewSum", nrNew); // 30?
-  // gb->addCount("cnt");
+        auto gb = make_unique<GroupBy>(std::move(sel), IUSet({od}));
+        gb->addCount("count");
+        gb->addSum("totalprice", op);
+        auto cnt = gb->getIU("count"), sum = gb->getIU("totalprice");
 
-  // IU* sum = gb->getIU("nrNewSum");
-  // IU* cnt = gb->getIU("cnt");
+        auto sort = make_unique<Sort>(std::move(gb), std::vector<IU*>({od}));
+        produceAndPrint(std::move(sort), {od, cnt, sum});
+    }
 
-  // auto s = make_unique<Sort>(std::move(gb), vector<IU*>{sum});
-
-  // produceAndPrint(std::move(s), IUSet({rn, sum, cnt}));
-
-  // ------------------------------------------------------------
-  // Date test; should return 727305 on sf1 according to umbra
-  // ------------------------------------------------------------
-  // select count(*) from orders where o_orderdate < date '1995-03-15'
-  // ------------------------------------------------------------
-
-  std::cout << "//" << stringToType<Date>("1995-03-15", 10) << std::endl;
-  auto o = make_unique<Scan>("orders");
-  IU *od = o->getIU("o_orderdate");
-  IU *op = o->getIU("o_totalprice");
-
-  auto sel = make_unique<Selection>(
-      std::move(o), makeCallExp("std::less()", od, stringToType<Date>("1995-03-15", 10).value));
-  auto gb = make_unique<GroupBy>(std::move(sel), IUSet());
-  gb->addSum("sum", op);
-  gb->addMin("min", op);
-
-  IU *min_ = gb->getIU("min");
-  IU *sum_ = gb->getIU("sum");
-  produceAndPrint(std::move(gb), {min_, sum_});
-
-  return 0;
+    return 0;
 }
