@@ -12,7 +12,7 @@ using namespace std;
 using namespace p2c;
 
 int main(int argc, char** argv) {
-   TPCH db(argc >= 2 ? argv[1] : "/opt/tpch-p2c/sf10");
+   TPCH db(argc >= 2 ? argv[1] : "data-generator/output/");
    unsigned run_count = argc >= 3 ? atoi(argv[2]) : 1;
    for (unsigned run = 0; run < run_count; ++run) {
 #include "gen.cpp"
