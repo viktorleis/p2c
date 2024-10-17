@@ -2,13 +2,14 @@
 
 sf=${1:-"1"}
 
-mkdir input
-cd tpch-dbgen || exit
-test -f dbgen || ( git submodule update --init .; make )
-./dbgen -s"$sf"
-chmod +rw nation.tbl
-chmod -x nation.tbl
-mv -f ./*.tbl ../input
-cd ..
+mkdir -p input
+( # generate csv data
+  cd tpch-dbgen || exit 1
+  test -f dbgen || ( git submodule update --init .; make )
+  ./dbgen -fs"$sf"
+  chmod uga+rw-x *.tbl
+  mv -f ./*.tbl ../input
+) || exit $?
+# convert csv data to binary
 make
-./all.out input/
+./all.out input
