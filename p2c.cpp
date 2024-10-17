@@ -173,7 +173,7 @@ struct ConstExp : public Exp {
    ~ConstExp() {}
 
    string compile() override {
-      if constexpr (std::is_same_v<T, std::string_view>) {
+      if constexpr (type_tag<T>::tag == Type::String) {
          return format("\"{}\"", x);  // Add quotes for strings
       } else {
          return format("{}", x);
