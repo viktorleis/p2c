@@ -21,6 +21,7 @@ using clang::DiagnosticsEngine;
 using clang::EmitLLVMOnlyAction;
 using clang::TextDiagnosticPrinter;
 
+using llvm::ArrayRef;
 using llvm::Expected;
 using llvm::IntrusiveRefCntPtr;
 using llvm::LLVMContext;
@@ -54,14 +55,19 @@ public:
     using std::errc;
     const auto err = [](errc ec) { return std::make_error_code(ec); };
 
-    const char code_fname[] = "jit.c";
+    const char code_fname[] = "jit.cpp";
 
     // Create compiler instance.
     CompilerInstance CC;
 
     // Setup compiler invocation.
     bool ok = CompilerInvocation::CreateFromArgs(CC.getInvocation(),
-                                                 {code_fname}, *DE);
+           {code_fname,
+             "-stdlib=libc++",
+              "-isystem", "/usr/local/include/c++/v1",
+              "-isystem", "/usr/local/lib/clang/20/include",
+              "-isystem", "/usr/include",
+              "-isystem", "/usr/include/x86_64-linux-gnu"}, *DE);
     // We control the arguments, so we assert.
     assert(ok);
 
@@ -76,9 +82,9 @@ public:
         code_fname, MemoryBuffer::getMemBuffer(code).release());
 
     // Configure codegen options.
-    auto& CG = CC.getCodeGenOpts();
-    CG.OptimizationLevel = 3;
-    CG.setInlining(clang::CodeGenOptions::NormalInlining);
+    //auto& CG = CC.getCodeGenOpts();
+    //CG.OptimizationLevel = 3;
+    //CG.setInlining(clang::CodeGenOptions::NormalInlining);
 
     // Generate LLVM IR.
     EmitLLVMOnlyAction A;
@@ -90,6 +96,7 @@ public:
 
     // Take generated LLVM IR module and the LLVMContext.
     auto M = A.takeModule();
+    M->print(llvm::outs(), nullptr);
     auto C = std::unique_ptr<LLVMContext>(A.takeLLVMContext());
 
     // TODO: Can this become nullptr when the action succeeds?

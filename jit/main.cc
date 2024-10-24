@@ -1,15 +1,16 @@
+#include <iostream>
+
+#include <llvm/IR/Mangler.h>
+
 #include "ccompiler.h"
 #include "jit.h"
 
 int main() {
     const char code[] =
-        "extern void libc_puts(const char*);"
-        "struct S { int a; int b; };"
-        "static void init_a(struct S* s) { s->a = 1111; }"
-        "static void init_b(struct S* s) { s->b = 2222; }"
-        "void init(struct S* s) {"
-        "init_a(s); init_b(s);"
-        "libc_puts(\"libc_puts()\"); }";
+"#include <vector> // curr\n"
+"void std::__libcpp_verbose_abort(char const* format, ...) noexcept {std::abort();}"
+"struct S { int a; int b; std::vector<int> c;};\n"
+"void init(struct S* s) { s->a = 42; s->b = 1337; s->c.push_back(s->a); }\n";
 
     auto R = cc::CCompiler().compile(code);
     // Abort if compilation failed.
@@ -23,6 +24,8 @@ int main() {
 
     auto JIT = jit::Jit::Create();
     auto TSM = llvm::orc::ThreadSafeModule(std::move(M), std::move(C));
+    std::string mangledInit = "_Z4initP1S";
+
 
     auto RT = JIT->addModule(std::move(TSM));
     if (auto E = RT.takeError()) {
@@ -30,23 +33,24 @@ int main() {
         return 1;
     }
 
-    if (auto ADDR = JIT->lookup("init")) {
+    if (auto ADDR = JIT->lookup(mangledInit)) {
         std::printf("JIT ADDR 0x%lx\n", (*ADDR).getAddress().getValue());
 
         struct S {
             int a, b;
-        } state = {0, 0};
+            std::vector<int> c;
+        } state = {0, 0, {}};
         auto JIT_FN = (*ADDR).getAddress().toPtr<void(struct S*)>();
 
-        std::printf("S { a=%d b=%d }\n", state.a, state.b);
+        std::printf("S { a=%d b=%d, c=%zu }\n", state.a, state.b, state.c.size());
         JIT_FN(&state);
-        std::printf("S { a=%d b=%d }\n", state.a, state.b);
+        std::printf("S { a=%d b=%d, c=%zu }\n", state.a, state.b, state.c.size());
     }
 
     // Remove jitted code tracked by this RT.
     cantFail((*RT)->remove());
 
-    if (auto E = JIT->lookup("init").takeError()) {
+    if (auto E = JIT->lookup(mangledInit).takeError()) {
         // In ERROR state, as expected, consume the error.
         llvm::consumeError(std::move(E));
     } else {
