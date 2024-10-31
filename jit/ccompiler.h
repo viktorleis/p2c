@@ -64,10 +64,12 @@ public:
     bool ok = CompilerInvocation::CreateFromArgs(CC.getInvocation(),
            {code_fname,
              "-stdlib=libc++",
-              "-isystem", "/usr/local/include/c++/v1",
-              "-isystem", "/usr/local/lib/clang/20/include",
-              "-isystem", "/usr/include",
-              "-isystem", "/usr/include/x86_64-linux-gnu"}, *DE);
+             "-isystem", "/usr/local/include/c++/v1",
+             "-isystem", "/usr/local/lib/clang/20/include",
+             "-isystem", "/usr/include",
+             "-isystem", "/usr/include/x86_64-linux-gnu",
+             "-fcxx-exceptions",
+             "-std=c++20"}, *DE);
     // We control the arguments, so we assert.
     assert(ok);
 
@@ -101,7 +103,6 @@ public:
 
     // TODO: Can this become nullptr when the action succeeds?
     assert(M);
-
     return CompileResult{std::move(C), std::move(M)};
   }
 

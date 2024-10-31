@@ -62,6 +62,11 @@ public:
     auto EPC = llvm::cantFail(llvm::orc::SelfExecutorProcessControl::Create());
     auto ES = std::make_unique<llvm::orc::ExecutionSession>(std::move(EPC));
 
+	bool a = llvm::sys::DynamicLibrary::LoadLibraryPermanently("/usr/local/lib/libc++.so");
+	assert(a && 1);
+    // a &= llvm::sys::DynamicLibrary::LoadLibraryPermanently("/usr/local/lib/libc++abi.so");
+    assert(a && 2);
+
     llvm::orc::JITTargetMachineBuilder JTMB(
         ES->getExecutorProcessControl().getTargetTriple());
 
