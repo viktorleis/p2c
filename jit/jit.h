@@ -62,17 +62,17 @@ public:
     auto EPC = llvm::cantFail(llvm::orc::SelfExecutorProcessControl::Create());
     auto ES = std::make_unique<llvm::orc::ExecutionSession>(std::move(EPC));
 
-	bool a = llvm::sys::DynamicLibrary::LoadLibraryPermanently("/usr/local/lib/libc++.so");
-	assert(a && 1);
-    // a &= llvm::sys::DynamicLibrary::LoadLibraryPermanently("/usr/local/lib/libc++abi.so");
-    assert(a && 2);
-
     llvm::orc::JITTargetMachineBuilder JTMB(
         ES->getExecutorProcessControl().getTargetTriple());
 
     auto DL = llvm::cantFail(JTMB.getDefaultDataLayoutForTarget());
 
-    return std::make_unique<Jit>(std::move(ES), std::move(JTMB), std::move(DL));
+    auto jit =  std::make_unique<Jit>(std::move(ES), std::move(JTMB), std::move(DL));
+  	auto libcxx = llvm::cantFail(llvm::orc::DynamicLibrarySearchGenerator::Load("/usr/local/lib/libc++.so.1.0", '\0'));
+    auto libcxxabi = llvm::cantFail(llvm::orc::DynamicLibrarySearchGenerator::Load("/usr/local/lib/libc++abi.so", '\0'));
+    jit->JD.addGenerator(std::move(libcxx));
+    jit->JD.addGenerator(std::move(libcxxabi));
+	return jit;
   }
 
   llvm::Expected<llvm::orc::ResourceTrackerSP> addModule(llvm::orc::ThreadSafeModule TSM) {
