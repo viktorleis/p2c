@@ -590,7 +590,7 @@ int main(int argc, char* argv[]) {
     std::stringstream ss;
     std::ostream& out = argc == 1 ? std::cout : ss;
     {
-        out << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
+        // out << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
         auto o = make_unique<Scan>("orders");
         IU* od = o->getIU("o_orderdate");
         IU* op = o->getIU("o_totalprice");

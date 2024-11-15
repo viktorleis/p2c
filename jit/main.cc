@@ -7,10 +7,10 @@
 
 int main() {
     const char code[] =
-"#include <vector> // curr\n"
-"void std::__libcpp_verbose_abort(char const* format, ...) noexcept {std::abort();}"
-"struct S { int a; int b; std::vector<int> c;};\n"
-"void init(struct S* s) { s->a = 42; s->b = 1337; s->c.push_back(s->a); }\n";
+        "#include <vector> // curr\n"
+        "void std::__libcpp_verbose_abort(char const* format, ...) noexcept {std::abort();}"
+        "struct S { int a; int b; std::vector<int> c;};\n"
+        "void init(struct S* s) { s->a = 42; s->b = 1337; s->c.push_back(s->a); }\n";
 
     auto R = cc::CCompiler().compile(code);
     // Abort if compilation failed.

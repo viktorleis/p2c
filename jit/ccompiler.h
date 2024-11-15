@@ -89,6 +89,7 @@ public:
     //CG.setInlining(clang::CodeGenOptions::NormalInlining);
 
     // Generate LLVM IR.
+    std::cout << "before llvm gen" << std::endl;
     EmitLLVMOnlyAction A;
     if (!CC.ExecuteAction(A)) {
       return llvm::make_error<StringError>(
