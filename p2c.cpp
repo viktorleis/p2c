@@ -1,19 +1,7 @@
 // Viktor Leis, 2023
 
-#include <fmt/core.h>
-#include <fmt/ranges.h>
-
-#include <algorithm>
-#include <cassert>
-#include <functional>
 #include <iostream>
-#include <map>
-#include <source_location>
-#include <sstream>
 #include <string>
-#include <string_view>
-#include <unordered_map>
-#include <vector>
 
 #include "operators/GroupBy.hpp"
 #include "operators/HashJoin.hpp"
