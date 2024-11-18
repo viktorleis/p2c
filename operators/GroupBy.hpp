@@ -13,28 +13,6 @@ struct Aggregate {
     virtual std::string genUpdate(std::string oldValueRef) = 0;
 };
 
-struct CountAggregate : Aggregate {
-    CountAggregate(std::string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-    std::string genInitValue() override { return "1"; }
-    std::string genUpdate(std::string oldValueRef) { return oldValueRef + "+= 1;\n"; }
-};
-
-struct MinAggregate : Aggregate {
-    MinAggregate(std::string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-    std::string genInitValue() override { return fmt::format("{}", inputIU->varname); }
-    std::string genUpdate(std::string oldValueRef) {
-        return fmt::format("{} = std::min({}, {});\n", oldValueRef, oldValueRef, inputIU->varname);
-    }
-};
-
-struct SumAggregate : Aggregate {
-    SumAggregate(std::string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-    std::string genInitValue() override { return fmt::format("{}", inputIU->varname); }
-    std::string genUpdate(std::string oldValueRef) {
-        return fmt::format("{} += {};\n", oldValueRef, inputIU->varname);
-    }
-};
-
 // group by operator
 struct GroupBy : public Operator {
     std::unique_ptr<Operator> input;
@@ -76,7 +54,6 @@ struct GroupBy : public Operator {
             genBlock(fmt::format("if (it == {}.end())", ht.varname), [&]() {
                 std::vector<std::string> initValues;
                 for (auto& agg : aggs) initValues.push_back(agg->genInitValue());
-
                 // insert new group
                 print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(groupKeyIUs.v),
                       fmt::join(initValues, ","));
@@ -85,8 +62,7 @@ struct GroupBy : public Operator {
                 // update group
                 unsigned i = 0;
                 for (auto& agg : aggs) {
-                    std::cout << agg->genUpdate(fmt::format("get<{}>(it->second)", i));
-                    i++;
+                    fmt::print("{};\n", agg->genUpdate(fmt::format("get<{}>(it->second)", i++)));
                 }
             });
         });

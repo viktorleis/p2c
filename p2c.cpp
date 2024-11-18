@@ -32,15 +32,16 @@ int main(int argc, char* argv[]) {
     struct CountAggregate : Aggregate {
         CountAggregate(std::string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
         std::string genInitValue() override { return "1"; }
-        std::string genUpdate(std::string oldValueRef) { return oldValueRef + "+= 1;\n"; }
+        std::string genUpdate(std::string oldValueRef) {
+            return fmt::format("{} += 1", oldValueRef);
+        }
     };
 
     struct MinAggregate : Aggregate {
         MinAggregate(std::string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
         std::string genInitValue() override { return fmt::format("{}", inputIU->varname); }
         std::string genUpdate(std::string oldValueRef) {
-            return fmt::format("{} = std::min({}, {});\n", oldValueRef, oldValueRef,
-                               inputIU->varname);
+            return fmt::format("{} = std::min({}, {})", oldValueRef, oldValueRef, inputIU->varname);
         }
     };
 
@@ -48,7 +49,7 @@ int main(int argc, char* argv[]) {
         SumAggregate(std::string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
         std::string genInitValue() override { return fmt::format("{}", inputIU->varname); }
         std::string genUpdate(std::string oldValueRef) {
-            return fmt::format("{} += {};\n", oldValueRef, inputIU->varname);
+            return fmt::format("{} += {}", oldValueRef, inputIU->varname);
         }
     };
 
