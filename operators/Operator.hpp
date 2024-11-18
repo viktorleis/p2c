@@ -7,9 +7,9 @@
 #include <source_location>
 #include <string>
 
-#include "../io.hpp"
-#include "../iu.hpp"
-#include "../types.hpp"
+#include "io.hpp"
+#include "iu.hpp"
+#include "types.hpp"
 
 namespace p2c {
 

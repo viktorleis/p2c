@@ -2,8 +2,8 @@
 #include <string>
 #include <vector>
 
-#include "../tpch.hpp"
 #include "Operator.hpp"
+#include "tpch.hpp"
 
 namespace p2c {
 
