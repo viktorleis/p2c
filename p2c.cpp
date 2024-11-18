@@ -29,6 +29,29 @@ int main(int argc, char* argv[]) {
     //   order by count(*)
     // ------------------------------------------------------------
 
+    struct CountAggregate : Aggregate {
+        CountAggregate(std::string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+        std::string genInitValue() override { return "1"; }
+        std::string genUpdate(std::string oldValueRef) { return oldValueRef + "+= 1;\n"; }
+    };
+
+    struct MinAggregate : Aggregate {
+        MinAggregate(std::string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+        std::string genInitValue() override { return fmt::format("{}", inputIU->varname); }
+        std::string genUpdate(std::string oldValueRef) {
+            return fmt::format("{} = std::min({}, {});\n", oldValueRef, oldValueRef,
+                               inputIU->varname);
+        }
+    };
+
+    struct SumAggregate : Aggregate {
+        SumAggregate(std::string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+        std::string genInitValue() override { return fmt::format("{}", inputIU->varname); }
+        std::string genUpdate(std::string oldValueRef) {
+            return fmt::format("{} += {};\n", oldValueRef, inputIU->varname);
+        }
+    };
+
     {
         std::cout << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
         auto o = make_unique<Scan>("orders");
@@ -45,9 +68,9 @@ int main(int argc, char* argv[]) {
         sel = make_unique<Selection>(std::move(sel),
                                      makeCallExp("std::equal_to()", oprio, std::string_view(prio)));
         auto gb = make_unique<GroupBy>(std::move(sel), IUSet({os}));
-        gb->addCount("cnt");
-        gb->addMin("min", op);
-        gb->addSum("sum", op);
+        gb->addAggregate(std::make_unique<CountAggregate>("cnt", op));
+        gb->addAggregate(std::make_unique<MinAggregate>("min", op));
+        gb->addAggregate(std::make_unique<SumAggregate>("sum", op));
 
         IU* cnt_ = gb->getIU("cnt");
         IU* min_ = gb->getIU("min");
