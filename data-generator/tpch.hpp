@@ -1,3 +1,5 @@
+// Maximilian Kuschewski, 2023
+// Adapted from Spilly
 #pragma once
 #include <string_view>
 

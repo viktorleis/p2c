@@ -1,3 +1,4 @@
+// Maximilian Kuschewski, 2023
 #include "csv.hpp"
 #include "table-reader.hpp"
 #include "tpch.hpp"
