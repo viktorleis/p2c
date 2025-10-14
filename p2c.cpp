@@ -8,8 +8,8 @@
 #include <map>
 #include <unordered_map>
 #include <vector>
-#include <fmt/core.h>
-#include <fmt/ranges.h>
+#include <format>
+#include <print>
 #include <source_location>
 #include <string>
 #include <string_view>
@@ -18,7 +18,6 @@
 #include "tpch.hpp"
 
 using namespace std;
-using namespace fmt;
 using namespace p2c;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,6 +62,18 @@ string formatVarnames(const vector<IU*>& ius) {
 // provide an IU by generating local variable (helper)
 void provideIU(IU* iu, const string& value) {
    print("{} {} = {};\n", tname(iu->type), iu->varname, value);
+}
+
+// helper function for printing tuples
+std::string join(const std::vector<std::string>& strs, const std::string& delim) {
+   std::string result = "";
+   bool first = true;
+   for (const auto& str : strs){
+      if (first) first = false;
+      else result += delim;
+      result += str;
+   }
+   return result;
 }
 
 // an unordered set of IUs
@@ -446,7 +457,7 @@ struct GroupBy : public Operator {
                }
             }
             // insert new group
-            print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), fmt::join(initValues, ","));
+            print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), join(initValues, ","));
          });
          genBlock("else", [&]() {
             // update group
