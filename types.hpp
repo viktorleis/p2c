@@ -1,12 +1,11 @@
 #pragma once
 
-#include <fmt/format.h>
-
 #include <algorithm>
 #include <cassert>
 #include <charconv>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <string_view>
@@ -249,11 +248,11 @@ struct hash<tuple<Args...>> {
 }  // namespace std
 
 // --------------------------------------------------------------------------
-// custom c++20 formatter
-// from https://fmt.dev/latest/api.html#udt
+// custom c++23 formatter
+// from https://en.cppreference.com/w/cpp/utility/format/formatter.html
 // --------------------------------------------------------------------------
 template<>
-struct fmt::formatter<p2c::date> {
+struct std::formatter<p2c::date> {
     // Parses format specifications; we have none at the moment
     constexpr auto parse(format_parse_context &ctx) -> decltype(ctx.begin()) { return ctx.end(); }
     template<typename FormatContext>
@@ -261,6 +260,6 @@ struct fmt::formatter<p2c::date> {
         // ctx.out() is an output iterator to write to.
         unsigned year, month, day;
         p2c::date::fromInt(d.value, year, month, day);
-        return fmt::format_to(ctx.out(), "({:04}-{:02}-{:02})", year, month, day);
+        return std::format_to(ctx.out(), "({:04}-{:02}-{:02})", year, month, day);
     }
 };

@@ -8,8 +8,8 @@
 #include <map>
 #include <unordered_map>
 #include <vector>
-#include <fmt/core.h>
-#include <fmt/ranges.h>
+#include <format>
+#include <print>
 #include <source_location>
 #include <string>
 #include <string_view>
@@ -18,7 +18,6 @@
 #include "tpch.hpp"
 
 using namespace std;
-using namespace fmt;
 using namespace p2c;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,26 +37,32 @@ struct IU {
    IU(const string& name, Type type) : name(name), type(type), varname(genVar(name)) {}
 };
 
+// format generic list of strings with delimites (helper function)
+string join(const vector<string>& strs, const string& delim) {
+   string result = "";
+   bool first = true;
+   for (const auto& str : strs){
+      if (first) first = false;
+      else result += delim;
+      result += str;
+   }
+   return result;
+}
+
 // format comma-separated list of IU types (helper function)
 string formatTypes(const vector<IU*>& ius) {
-   stringstream ss;
+   vector<string> iuNames;
    for (IU* iu : ius)
-      ss << tname(iu->type) << ",";
-   string result = ss.str();
-   if (result.size())
-      result.pop_back(); // remove last ','
-   return result;
+      iuNames.push_back(tname(iu->type));
+   return join(iuNames, ",");
 }
 
 // format comma-separated list of IU varnames (helper function)
 string formatVarnames(const vector<IU*>& ius) {
-   stringstream ss;
+   vector<string> varNames;
    for (IU* iu : ius)
-      ss << iu->varname << ",";
-   string result = ss.str();
-   if (result.size())
-      result.pop_back(); // remove last ','
-   return result;
+      varNames.push_back(iu->varname);
+   return join(varNames, ",");
 }
 
 // provide an IU by generating local variable (helper)
@@ -570,7 +575,7 @@ int main(int argc, char* argv[]) {
         CountAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
         string genInitValue() override { return "1"; }
         string genUpdate(string oldValueRef) override {
-            return fmt::format("{} += 1", oldValueRef);
+            return format("{} += 1", oldValueRef);
         }
     };
 

@@ -13,9 +13,8 @@ Components:
 
 ## Getting Started
 Prerequisites:
-- C++20 compiler
+- C++23 compiler (gcc >= 14, clang >= 19)
 - clang-format
-- fmt library (`libfmt-dev` on Ubuntu)
 
 To run a query, follow these steps:
 1. **Data Generation**: Convert TPC-H CSV data to optimized binary columnar format
