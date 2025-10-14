@@ -37,36 +37,9 @@ struct IU {
    IU(const string& name, Type type) : name(name), type(type), varname(genVar(name)) {}
 };
 
-// format comma-separated list of IU types (helper function)
-string formatTypes(const vector<IU*>& ius) {
-   stringstream ss;
-   for (IU* iu : ius)
-      ss << tname(iu->type) << ",";
-   string result = ss.str();
-   if (result.size())
-      result.pop_back(); // remove last ','
-   return result;
-}
-
-// format comma-separated list of IU varnames (helper function)
-string formatVarnames(const vector<IU*>& ius) {
-   stringstream ss;
-   for (IU* iu : ius)
-      ss << iu->varname << ",";
-   string result = ss.str();
-   if (result.size())
-      result.pop_back(); // remove last ','
-   return result;
-}
-
-// provide an IU by generating local variable (helper)
-void provideIU(IU* iu, const string& value) {
-   print("{} {} = {};\n", tname(iu->type), iu->varname, value);
-}
-
-// helper function for printing tuples
-std::string join(const std::vector<std::string>& strs, const std::string& delim) {
-   std::string result = "";
+// format generic list of strings with delimites (helper function)
+string join(const vector<string>& strs, const string& delim) {
+   string result = "";
    bool first = true;
    for (const auto& str : strs){
       if (first) first = false;
@@ -74,6 +47,27 @@ std::string join(const std::vector<std::string>& strs, const std::string& delim)
       result += str;
    }
    return result;
+}
+
+// format comma-separated list of IU types (helper function)
+string formatTypes(const vector<IU*>& ius) {
+   vector<string> iuNames;
+   for (IU* iu : ius)
+      iuNames.push_back(tname(iu->type));
+   return join(iuNames, ",");
+}
+
+// format comma-separated list of IU varnames (helper function)
+string formatVarnames(const vector<IU*>& ius) {
+   vector<string> varNames;
+   for (IU* iu : ius)
+      varNames.push_back(iu->varname);
+   return join(varNames, ",");
+}
+
+// provide an IU by generating local variable (helper)
+void provideIU(IU* iu, const string& value) {
+   print("{} {} = {};\n", tname(iu->type), iu->varname, value);
 }
 
 // an unordered set of IUs
