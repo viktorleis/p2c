@@ -575,7 +575,7 @@ int main(int argc, char* argv[]) {
         CountAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
         string genInitValue() override { return "1"; }
         string genUpdate(string oldValueRef) override {
-            return fmt::format("{} += 1", oldValueRef);
+            return format("{} += 1", oldValueRef);
         }
     };
 
