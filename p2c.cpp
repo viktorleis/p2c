@@ -1,24 +1,29 @@
 // Viktor Leis, 2023
 
-#include <cassert>
 #include <algorithm>
+#include <cassert>
 #include <functional>
 #include <iostream>
-#include <string>
 #include <map>
-#include <unordered_map>
-#include <vector>
-#include <format>
-#include <print>
 #include <source_location>
+#include <sstream>
 #include <string>
 #include <string_view>
-#include <sstream>
-#include "types.hpp"
-#include "tpch.hpp"
+#include <unordered_map>
+#include <vector>
 
-using namespace std;
-using namespace p2c;
+#if __has_include(<format>)
+    #include <format>
+    #include <print>
+#elif __has_include(<fmt/core.h>)
+    #include <fmt/core.h>
+    using namespace fmt;
+#else
+    #error "Neither <format> nor libfmt is available. Please install libfmt and link it in your Makefile."
+#endif
+
+#include "tpch.hpp"
+#include "types.hpp"
 
 ////////////////////////////////////////////////////////////////////////////////
 

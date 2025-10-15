@@ -12,9 +12,11 @@ Components:
 - **`queryFrame.cpp`** - Runtime framework that executes generated code
 
 ## Getting Started
-Prerequisites:
-- C++23 compiler (gcc >= 14, clang >= 19)
-- clang-format (optional; formats generated code)
+
+You will need:
+- A C++23 compiler (gcc >= 14, clang >= 19)
+- Alternatively: A C++20 compiler *and* [`libfmt`](https://github.com/fmtlib/fmt)
+- Optionally: clang-format to format generated code
 
 To run a query, follow these steps:
 1. **Data Generation**: Convert TPC-H CSV data to optimized binary columnar format
