@@ -1,7 +1,7 @@
-# P2C: Prototype-to-Code Query Compiler
+# P2C: Plan-to-Code Query Compiler
 
 p2c is an educational compiling query engine.
-Given an operator tree (query plan), it generates C++ code (hence plan2code).
+Given an operator tree (query plan), it generates C++ code (hence plan-to-code).
 The generated code is nicely formatted and can be inspected in `gen.cpp`.
 
 Components:
@@ -14,7 +14,7 @@ Components:
 ## Getting Started
 Prerequisites:
 - C++23 compiler (gcc >= 14, clang >= 19)
-- clang-format
+- clang-format (optional; formats generated code)
 
 To run a query, follow these steps:
 1. **Data Generation**: Convert TPC-H CSV data to optimized binary columnar format
@@ -34,8 +34,8 @@ The script first uses the `dbgen` tool to generate csv files, then reads and con
 ### Code Generation & Compilation:
 ```bash
 make p2c   # Build the query compiler and sample query in p2c.cpp#main
-make query # Generate data, compile query, and build executable
-make       # does all of the above 
+make query # Compile generated query code
+make       # Does all of the above 
 ```
 
 ### Execution:
