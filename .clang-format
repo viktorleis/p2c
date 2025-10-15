@@ -1,8 +1,18 @@
 ---
 Language:        Cpp
 BasedOnStyle:    Google
-TabWidth:        4
-IndentWidth:     4
-ColumnLimit:     100
+TabWidth:        3
+IndentWidth:     3
+AccessModifierOffset: -3
+ColumnLimit:     111
 SpaceAfterTemplateKeyword: false
 AlwaysBreakTemplateDeclarations: true
+RequiresClausePosition: WithPreceding
+PackConstructorInitializers: CurrentLine
+LambdaBodyIndentation: OuterScope
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortFunctionsOnASingleLine: Inline 
+AllowShortLoopsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: Empty
+...

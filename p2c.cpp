@@ -13,13 +13,13 @@
 #include <vector>
 
 #if __has_include(<format>)
-    #include <format>
-    #include <print>
+#include <format>
+#include <print>
 #elif __has_include(<fmt/core.h>)
-    #include <fmt/core.h>
-    using namespace fmt;
+#include <fmt/core.h>
+using namespace fmt;
 #else
-    #error "Neither <format> nor libfmt is available. Please install libfmt and link it in your Makefile."
+#error "Neither <format> nor libfmt is available. Please install libfmt and link it in your Makefile."
 #endif
 
 #include "tpch.hpp"
@@ -46,9 +46,11 @@ struct IU {
 string join(const vector<string>& strs, const string& delim) {
    string result = "";
    bool first = true;
-   for (const auto& str : strs){
-      if (first) first = false;
-      else result += delim;
+   for (const auto& str : strs) {
+      if (first)
+         first = false;
+      else
+         result += delim;
       result += str;
    }
    return result;
@@ -84,14 +86,10 @@ struct IUSet {
    IUSet() {}
 
    // move constructor
-   IUSet(IUSet&& x) {
-      v = std::move(x.v);
-   }
+   IUSet(IUSet&& x) { v = std::move(x.v); }
 
    // copy constructor
-   IUSet(const IUSet& x) {
-      v = x.v;
-   }
+   IUSet(const IUSet& x) { v = x.v; }
 
    // convert vector to set of IUs (assumes vector is unique, but not sorted)
    explicit IUSet(const vector<IU*>& vv) {
@@ -110,10 +108,10 @@ struct IUSet {
    void add(IU* iu) {
       auto it = lower_bound(v.begin(), v.end(), iu);
       if (it == v.end() || *it != iu)
-         v.insert(it, iu); // O(n), not nice
+         v.insert(it, iu);  // O(n), not nice
    }
 
-   bool contains (IU* iu) const {
+   bool contains(IU* iu) const {
       auto it = lower_bound(v.begin(), v.end(), iu);
       return (it != v.end() && *it == iu);
    }
@@ -156,7 +154,7 @@ struct Exp {
    // set of all IUs used in this expression
    virtual IUSet iusUsed() = 0;
    // destructor
-   virtual ~Exp() {};
+   virtual ~Exp(){};
 };
 
 // expression that simply references an IU
@@ -173,12 +171,13 @@ struct IUExp : public Exp {
 };
 
 // expression that represent a constant value
-template<typename T> requires is_p2c_type<T>
+template<typename T>
+requires is_p2c_type<T>
 struct ConstExp : public Exp {
    T x;
 
    // constructor
-   ConstExp(T x) : x(x) {};
+   ConstExp(T x) : x(x){};
    // destructor
    ~ConstExp() {}
 
@@ -188,7 +187,7 @@ struct ConstExp : public Exp {
       } else {
          return format("{}", x);
       }
-    }
+   }
    IUSet iusUsed() override { return {}; }
 };
 
@@ -224,12 +223,12 @@ struct FnExp : public Exp {
 
 // generate curly-brace block of C++ code (helper function)
 template<class Fn>
-void genBlock(const string& str, Fn fn, const std::source_location& location = std::source_location::current()) {
+void genBlock(const string& str, Fn fn,
+              const std::source_location& location = std::source_location::current()) {
    cout << str << "{ //" << location.line() << "; " << location.function_name() << endl;
    fn();
    cout << "}" << endl;
 }
-
 
 // consumer callback function
 typedef std::function<void(void)> ConsumerFn;
@@ -297,14 +296,14 @@ struct Selection : public Operator {
    unique_ptr<Exp> pred;
 
    // constructor
-   Selection(unique_ptr<Operator> input, unique_ptr<Exp> predicate) : input(std::move(input)), pred(std::move(predicate)) {}
+   Selection(unique_ptr<Operator> input, unique_ptr<Exp> predicate)
+       : input(std::move(input)),
+         pred(std::move(predicate)) {}
 
    // destructor
    ~Selection() {}
 
-   IUSet availableIUs() override {
-      return input->availableIUs();
-   }
+   IUSet availableIUs() override { return input->availableIUs(); }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       input->produce(required | pred->iusUsed(), [&]() {
@@ -322,14 +321,15 @@ struct Map : public Operator {
    IU iu;
 
    // constructor
-   Map(unique_ptr<Operator> input, unique_ptr<Exp> exp, const string& name, Type type) : input(std::move(input)), exp(std::move(exp)), iu{name, type} {}
+   Map(unique_ptr<Operator> input, unique_ptr<Exp> exp, const string& name, Type type)
+       : input(std::move(input)),
+         exp(std::move(exp)),
+         iu{name, type} {}
 
    // destructor
    ~Map() {}
 
-   IUSet availableIUs() override {
-      return input->availableIUs() | IUSet({&iu});
-   }
+   IUSet availableIUs() override { return input->availableIUs() | IUSet({&iu}); }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       input->produce((required | exp->iusUsed()) - IUSet({&iu}), [&]() {
@@ -354,14 +354,12 @@ struct Sort : public Operator {
    IU v{"vector", Type::Undefined};
 
    // constructor
-   Sort(unique_ptr<Operator> input, const vector<IU*>& keyIUs) : input(std::move(input)), keyIUs(keyIUs)  {}
+   Sort(unique_ptr<Operator> input, const vector<IU*>& keyIUs) : input(std::move(input)), keyIUs(keyIUs) {}
 
    // destructor
    ~Sort() {}
 
-   IUSet availableIUs() override {
-      return input->availableIUs();
-   }
+   IUSet availableIUs() override { return input->availableIUs(); }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       // compute IUs
@@ -376,11 +374,12 @@ struct Sort : public Operator {
       });
 
       // sort
-      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});\n", v.varname);
+      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});\n",
+            v.varname);
 
       // iterate
       genBlock(format("for (auto& t : {})", v.varname), [&]() {
-         for (unsigned i=0; i<allIUs.size(); i++)
+         for (unsigned i = 0; i < allIUs.size(); i++)
             if (required.contains(allIUs[i]))
                provideIU(allIUs[i], format("get<{}>(t)", i));
          consume();
@@ -407,59 +406,64 @@ struct GroupBy : public Operator {
    IU ht{"aggHT", Type::Undefined};
 
    // constructor
-   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs) : input(std::move(input)), groupKeyIUs(groupKeyIUs) {}
+   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs)
+       : input(std::move(input)),
+         groupKeyIUs(groupKeyIUs) {}
 
-    // destructor
-     ~GroupBy() {}
+   // destructor
+   ~GroupBy() {}
 
-    void addAggregate(std::unique_ptr<Aggregate> agg) { aggs.emplace_back(std::move(agg)); }
+   void addAggregate(std::unique_ptr<Aggregate> agg) { aggs.emplace_back(std::move(agg)); }
 
-    std::vector<IU*> resultIUs() {
-        std::vector<IU*> v;
-        for (auto& agg : aggs) v.push_back(&agg->resultIU);
-        return v;
+   std::vector<IU*> resultIUs() {
+      std::vector<IU*> v;
+      for (auto& agg : aggs)
+         v.push_back(&agg->resultIU);
+      return v;
    }
 
    IUSet inputIUs() {
       IUSet v;
       for (auto& agg : aggs)
-         if (agg->inputIU) v.add(agg->inputIU);
+         if (agg->inputIU)
+            v.add(agg->inputIU);
       return v;
    }
 
-   IUSet availableIUs() override {
-      return groupKeyIUs | IUSet(resultIUs());
-   }
+   IUSet availableIUs() override { return groupKeyIUs | IUSet(resultIUs()); }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       // build hash table
-      print("unordered_map<tuple<{}>, tuple<{}>> {};\n", formatTypes(groupKeyIUs.v), formatTypes(resultIUs()), ht.varname);
+      print("unordered_map<tuple<{}>, tuple<{}>> {};\n", formatTypes(groupKeyIUs.v), formatTypes(resultIUs()),
+            ht.varname);
       input->produce(groupKeyIUs | inputIUs(), [&]() {
          // insert tuple into hash table
          print("auto it = {}.find({{{}}});\n", ht.varname, formatVarnames(groupKeyIUs.v));
          genBlock(format("if (it == {}.end())", ht.varname), [&]() {
             vector<string> initValues;
-            for (auto& agg : aggs) initValues.push_back(agg->genInitValue());
-               // insert new group
-               print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), join(initValues, ","));
-            });
-            genBlock("else", [&]() {
-               // update group
-               unsigned i=0;
-               for (auto& agg : aggs) {
-                  print("{};\n", agg->genUpdate(format("get<{}>(it->second)", i++)));
-               }
-            });
-        });
+            for (auto& agg : aggs)
+               initValues.push_back(agg->genInitValue());
+            // insert new group
+            print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(groupKeyIUs.v),
+                  join(initValues, ","));
+         });
+         genBlock("else", [&]() {
+            // update group
+            unsigned i = 0;
+            for (auto& agg : aggs) {
+               print("{};\n", agg->genUpdate(format("get<{}>(it->second)", i++)));
+            }
+         });
+      });
 
       // iterate over hash table
       genBlock(format("for (auto& it : {})", ht.varname), [&]() {
-         for (unsigned i=0; i<groupKeyIUs.size(); i++) {
+         for (unsigned i = 0; i < groupKeyIUs.size(); i++) {
             IU* iu = groupKeyIUs.v[i];
             if (required.contains(iu))
                provideIU(iu, format("get<{}>(it.first)", i));
          }
-         unsigned i=0;
+         unsigned i = 0;
          for (auto& agg : aggs) {
             provideIU(&agg->resultIU, format("get<{}>(it.second)", i));
             i++;
@@ -470,7 +474,8 @@ struct GroupBy : public Operator {
 
    IU* getIU(const string& attName) {
       for (auto& agg : aggs)
-         if (agg->resultIU.name == attName) return &agg->resultIU;
+         if (agg->resultIU.name == attName)
+            return &agg->resultIU;
       throw;
    }
 };
@@ -483,47 +488,53 @@ struct HashJoin : public Operator {
    IU ht{"joinHT", Type::Undefined};
 
    // constructor
-   HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs, const vector<IU*>& rightKeyIUs) :
-      left(std::move(left)), right(std::move(right)), leftKeyIUs(leftKeyIUs), rightKeyIUs(rightKeyIUs) {}
+   HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs,
+            const vector<IU*>& rightKeyIUs)
+       : left(std::move(left)),
+         right(std::move(right)),
+         leftKeyIUs(leftKeyIUs),
+         rightKeyIUs(rightKeyIUs) {}
 
    // destructor
    ~HashJoin() {}
 
-   IUSet availableIUs() override {
-      return left->availableIUs() | right->availableIUs();
-   }
+   IUSet availableIUs() override { return left->availableIUs() | right->availableIUs(); }
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       // figure out where required IUs come from
       IUSet leftRequiredIUs = (required & left->availableIUs()) | IUSet(leftKeyIUs);
       IUSet rightRequiredIUs = (required & right->availableIUs()) | IUSet(rightKeyIUs);
-      IUSet leftPayloadIUs = leftRequiredIUs - IUSet(leftKeyIUs); // these we need to store in hash table as payload
+      IUSet leftPayloadIUs =
+          leftRequiredIUs - IUSet(leftKeyIUs);  // these we need to store in hash table as payload
 
       // build hash table
-      print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), ht.varname);
+      print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs),
+            formatTypes(leftPayloadIUs.v), ht.varname);
       left->produce(leftRequiredIUs, [&]() {
          // insert tuple into hash table
-         print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(leftKeyIUs), formatVarnames(leftPayloadIUs.v));
+         print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(leftKeyIUs),
+               formatVarnames(leftPayloadIUs.v));
       });
 
       // probe hash table
       right->produce(rightRequiredIUs, [&]() {
          // iterate over matches
-         genBlock(format("for (auto range = {}.equal_range({{{}}}); range.first!=range.second; range.first++)", ht.varname, formatVarnames(rightKeyIUs)),
+         genBlock(format("for (auto range = {}.equal_range({{{}}}); range.first!=range.second; range.first++)",
+                         ht.varname, formatVarnames(rightKeyIUs)),
                   [&]() {
-                     // unpack payload
-                     unsigned countP = 0;
-                     for (IU* iu : leftPayloadIUs)
-                        provideIU(iu, format("get<{}>(range.first->second)", countP++));
-                     // unpack keys if needed
-                     for (unsigned i=0; i<leftKeyIUs.size(); i++) {
-                        IU* iu = leftKeyIUs[i];
-                        if (required.contains(iu))
-                           provideIU(iu, format("get<{}>(range.first->first)", i));
-                     }
-                     // consume
-                     consume();
-                  });
+            // unpack payload
+            unsigned countP = 0;
+            for (IU* iu : leftPayloadIUs)
+               provideIU(iu, format("get<{}>(range.first->second)", countP++));
+            // unpack keys if needed
+            for (unsigned i = 0; i < leftKeyIUs.size(); i++) {
+               IU* iu = leftKeyIUs[i];
+               if (required.contains(iu))
+                  provideIU(iu, format("get<{}>(range.first->first)", i));
+            }
+            // consume
+            consume();
+         });
       });
    }
 };
@@ -531,7 +542,8 @@ struct HashJoin : public Operator {
 ////////////////////////////////////////////////////////////////////////////////
 
 // create a function call expression (helper)
-template<typename T> requires is_p2c_type<T>
+template<typename T>
+requires is_p2c_type<T>
 unique_ptr<Exp> makeCallExp(const string& fn, IU* iu, const T& x) {
    vector<unique_ptr<Exp>> v;
    v.push_back(make_unique<IUExp>(iu));
@@ -540,7 +552,7 @@ unique_ptr<Exp> makeCallExp(const string& fn, IU* iu, const T& x) {
 }
 
 template<typename... T>
-unique_ptr<Exp> makeCallExp(const string& fn,  std::unique_ptr<T>... args) {
+unique_ptr<Exp> makeCallExp(const string& fn, std::unique_ptr<T>... args) {
    vector<unique_ptr<Exp>> v;
    (v.push_back(std::move(args)), ...);
    return make_unique<FnExp>(fn, std::move(v));
@@ -548,83 +560,79 @@ unique_ptr<Exp> makeCallExp(const string& fn,  std::unique_ptr<T>... args) {
 
 // Print
 void produceAndPrint(unique_ptr<Operator> root, const std::vector<IU*>& ius, unsigned perfRepeat = 2) {
-   genBlock(
-      format("for (uint64_t {0} = 0; {0} != {1}; {0}++)", genVar("perfRepeat"), perfRepeat - 1),
-      [&]() {
-         root->produce(IUSet(ius), [&]() {
-            for (IU *iu : ius)
-               print("cout << {} << \" \";", iu->varname);
-            print("cout << endl;\n");
-         });
+   genBlock(format("for (uint64_t {0} = 0; {0} != {1}; {0}++)", genVar("perfRepeat"), perfRepeat - 1), [&]() {
+      root->produce(IUSet(ius), [&]() {
+         for (IU* iu : ius)
+            print("cout << {} << \" \";", iu->varname);
+         print("cout << endl;\n");
       });
+   });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[]) {
-    // ------------------------------------------------------------
-    // Simple test query; should return the following on sf1 according to umbra:
-    //   O 58 1333.79 2373761.38
-    //   P 1005 6765.52 187335496.90
-    //   F 144619 866.90 21856547600.45
-    // ------------------------------------------------------------
-    //   select o_orderstatus, count(*), min(o_totalprice), sum(o_totalprice)
-    //   from orders
-    //   where o_orderdate < date '1995-03-15'
-    //     and o_orderpriority = '1-URGENT'
-    //   group by o_orderstatus
-    //   order by count(*)
-    // ------------------------------------------------------------
+   // ------------------------------------------------------------
+   // Simple test query; should return the following on sf1 according to umbra:
+   //   O 58 1333.79 2373761.38
+   //   P 1005 6765.52 187335496.90
+   //   F 144619 866.90 21856547600.45
+   // ------------------------------------------------------------
+   //   select o_orderstatus, count(*), min(o_totalprice), sum(o_totalprice)
+   //   from orders
+   //   where o_orderdate < date '1995-03-15'
+   //     and o_orderpriority = '1-URGENT'
+   //   group by o_orderstatus
+   //   order by count(*)
+   // ------------------------------------------------------------
 
-    struct CountAggregate final : Aggregate {
-        CountAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-        string genInitValue() override { return "1"; }
-        string genUpdate(string oldValueRef) override {
-            return format("{} += 1", oldValueRef);
-        }
-    };
+   struct CountAggregate final : Aggregate {
+      CountAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+      string genInitValue() override { return "1"; }
+      string genUpdate(string oldValueRef) override { return format("{} += 1", oldValueRef); }
+   };
 
-    struct MinAggregate final : Aggregate {
-        MinAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-        string genInitValue() override { return format("{}", inputIU->varname); }
-        string genUpdate(string oldValueRef) override {
-            return format("{} = std::min({}, {})", oldValueRef, oldValueRef, inputIU->varname);
-        }
-    };
+   struct MinAggregate final : Aggregate {
+      MinAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+      string genInitValue() override { return format("{}", inputIU->varname); }
+      string genUpdate(string oldValueRef) override {
+         return format("{} = std::min({}, {})", oldValueRef, oldValueRef, inputIU->varname);
+      }
+   };
 
-    struct SumAggregate final : Aggregate {
-        SumAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-        string genInitValue() override { return format("{}", inputIU->varname); }
-        string genUpdate(string oldValueRef) override {
-            return format("{} += {}", oldValueRef, inputIU->varname);
-        }
-    };
+   struct SumAggregate final : Aggregate {
+      SumAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+      string genInitValue() override { return format("{}", inputIU->varname); }
+      string genUpdate(string oldValueRef) override {
+         return format("{} += {}", oldValueRef, inputIU->varname);
+      }
+   };
 
-    {
-        std::cout << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
-        auto o = make_unique<Scan>("orders");
-        IU* od = o->getIU("o_orderdate");
-        IU* op = o->getIU("o_totalprice");
-        IU* os = o->getIU("o_orderstatus");
-        IU* oprio = o->getIU("o_orderpriority");
+   {
+      std::cout << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
+      auto o = make_unique<Scan>("orders");
+      IU* od = o->getIU("o_orderdate");
+      IU* op = o->getIU("o_totalprice");
+      IU* os = o->getIU("o_orderstatus");
+      IU* oprio = o->getIU("o_orderpriority");
 
-        std::string prio = "1-URGENT";
+      std::string prio = "1-URGENT";
 
-        auto sel = make_unique<Selection>(
-            std::move(o),
-            makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
-        sel = make_unique<Selection>(std::move(sel), makeCallExp("std::equal_to()", oprio, std::string_view(prio)));
-        auto gb = make_unique<GroupBy>(std::move(sel), IUSet({os}));
-        gb->addAggregate(std::make_unique<CountAggregate>("cnt", op));
-        gb->addAggregate(std::make_unique<MinAggregate>("min", op));
-        gb->addAggregate(std::make_unique<SumAggregate>("sum", op));
+      auto sel = make_unique<Selection>(
+          std::move(o), makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
+      sel = make_unique<Selection>(std::move(sel),
+                                   makeCallExp("std::equal_to()", oprio, std::string_view(prio)));
+      auto gb = make_unique<GroupBy>(std::move(sel), IUSet({os}));
+      gb->addAggregate(std::make_unique<CountAggregate>("cnt", op));
+      gb->addAggregate(std::make_unique<MinAggregate>("min", op));
+      gb->addAggregate(std::make_unique<SumAggregate>("sum", op));
 
-        IU* cnt_ = gb->getIU("cnt");
-        IU* min_ = gb->getIU("min");
-        IU* sum_ = gb->getIU("sum");
+      IU* cnt_ = gb->getIU("cnt");
+      IU* min_ = gb->getIU("min");
+      IU* sum_ = gb->getIU("sum");
 
-        auto sort = make_unique<Sort>(std::move(gb), std::vector<IU*>({cnt_}));
-        produceAndPrint(std::move(sort), {os, cnt_, min_, sum_});
-    }
-    return 0;
+      auto sort = make_unique<Sort>(std::move(gb), std::vector<IU*>({cnt_}));
+      produceAndPrint(std::move(sort), {os, cnt_, min_, sum_});
+   }
+   return 0;
 }

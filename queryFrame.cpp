@@ -1,11 +1,12 @@
-#include <functional>
-#include <tuple>
 #include <algorithm>
+#include <cassert>
+#include <functional>
 #include <iostream>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
-#include <cassert>
+
 #include "tpch.hpp"
 
 using namespace std;

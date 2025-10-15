@@ -16,4 +16,7 @@ p2c: p2c.cpp
 clean:
 	rm -f p2c query gen.cpp
 
-.PHONY: clean
+format:
+	clang-format -i *.hpp *.cpp data-generator/*.hpp data-generator/*.cpp
+
+.PHONY: clean format
