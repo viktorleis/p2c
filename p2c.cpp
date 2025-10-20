@@ -349,10 +349,12 @@ struct Map : public Operator {
 struct Sort : public Operator {
    unique_ptr<Operator> input;
    vector<IU*> keyIUs;
+   vector<bool> ascending;
    IU v{"vector", Type::Undefined};
+   IU cmp{"custom_cmp", Type::Undefined};
 
    // constructor
-   Sort(unique_ptr<Operator> input, const vector<IU*>& keyIUs) : input(std::move(input)), keyIUs(keyIUs) {}
+   Sort(unique_ptr<Operator> input, const vector<IU*>& keyIUs, const vector<bool> ascending) : input(std::move(input)), keyIUs(keyIUs), ascending(ascending) {}
 
    // destructor
    ~Sort() {}
@@ -365,6 +367,20 @@ struct Sort : public Operator {
       vector<IU*> allIUs = keyIUs;
       allIUs.insert(allIUs.end(), restIUs.v.begin(), restIUs.v.end());
 
+      // define custom comparator
+      genBlock("struct", [&]() {
+         genBlock(format("bool operator()(const tuple<{0}>& lhs, const tuple<{0}>& rhs) const",
+                              formatTypes(allIUs)),
+                  [&]() {
+            for (size_t i = 0; i != keyIUs.size(); i++) {
+               print("if (get<{0}>(lhs) != get<{0}>(rhs)) return get<{0}>(lhs) {1} get<{0}>(rhs);\n", i,
+                          ascending[i] ? "<" : ">");
+            }
+            print("return false;\n");
+         });
+      });
+      print("{};\n", cmp.varname);
+
       // collect tuples
       print("vector<tuple<{}>> {};\n", formatTypes(allIUs), v.varname);
       input->produce(IUSet(allIUs), [&]() {
@@ -372,7 +388,7 @@ struct Sort : public Operator {
       });
 
       // sort
-      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});\n", v.varname);
+      print("sort({0}.begin(), {0}.end(), {1});\n", v.varname, cmp.varname);
 
       // iterate
       genBlock(format("for (auto& t : {})", v.varname), [&]() {
