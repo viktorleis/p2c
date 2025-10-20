@@ -398,6 +398,28 @@ struct Aggregate {
    virtual string genUpdate(string oldValueRef) = 0;
 };
 
+struct CountAggregate final : Aggregate {
+   CountAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+   string genInitValue() override { return "1"; }
+   string genUpdate(string oldValueRef) override { return format("{} += 1", oldValueRef); }
+};
+
+struct MinAggregate final : Aggregate {
+   MinAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+   string genInitValue() override { return format("{}", inputIU->varname); }
+   string genUpdate(string oldValueRef) override {
+      return format("{} = std::min({}, {})", oldValueRef, oldValueRef, inputIU->varname);
+   }
+};
+
+struct SumAggregate final : Aggregate {
+   SumAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+   string genInitValue() override { return format("{}", inputIU->varname); }
+   string genUpdate(string oldValueRef) override {
+      return format("{} += {}", oldValueRef, inputIU->varname);
+   }
+};
+
 // group by operator
 struct GroupBy : public Operator {
    unique_ptr<Operator> input;
@@ -585,29 +607,6 @@ int main(int argc, char* argv[]) {
    //   group by o_orderstatus
    //   order by count(*)
    // ------------------------------------------------------------
-
-   struct CountAggregate final : Aggregate {
-      CountAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-      string genInitValue() override { return "1"; }
-      string genUpdate(string oldValueRef) override { return format("{} += 1", oldValueRef); }
-   };
-
-   struct MinAggregate final : Aggregate {
-      MinAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-      string genInitValue() override { return format("{}", inputIU->varname); }
-      string genUpdate(string oldValueRef) override {
-         return format("{} = std::min({}, {})", oldValueRef, oldValueRef, inputIU->varname);
-      }
-   };
-
-   struct SumAggregate final : Aggregate {
-      SumAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-      string genInitValue() override { return format("{}", inputIU->varname); }
-      string genUpdate(string oldValueRef) override {
-         return format("{} += {}", oldValueRef, inputIU->varname);
-      }
-   };
-
    {
       std::cout << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
       auto o = make_unique<Scan>("orders");
