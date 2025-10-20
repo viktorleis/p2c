@@ -322,7 +322,7 @@ struct Map : public Operator {
 
    // constructor
    Map(unique_ptr<Operator> input, unique_ptr<Exp> exp, const string& name, Type type)
-      : input(std::move(input)), exp(std::move(exp)), iu{name, type} {}
+       : input(std::move(input)), exp(std::move(exp)), iu{name, type} {}
 
    // destructor
    ~Map() {}
@@ -417,8 +417,8 @@ struct Aggregate {
 struct CountAggregate final : Aggregate {
    CountAggregate(string name) : Aggregate(name, Type::Integer) {}
    string genInitValue() override { return "1"; }
-   string genUpdate(string oldValueRef) override {
-      return format("{} += 1", oldValueRef);
+   string genUpdate(string oldValueRef) override { 
+      return format("{} += 1", oldValueRef); 
    }
 };
 
@@ -435,7 +435,7 @@ struct SumAggregate final : Aggregate {
    SumAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
 
    string genInitValue() override { return format("{}", inputIU->varname); }
-   string genUpdate(string oldValueRef) override {
+   string genUpdate(string oldValueRef) override { 
       return format("{} += {}", oldValueRef, inputIU->varname);
    }
 };
@@ -604,41 +604,88 @@ void produceAndPrint(unique_ptr<Operator> root, const std::vector<IU*>& ius, uns
 
 int main(int argc, char* argv[]) {
    // ------------------------------------------------------------
-   // Simple test query; should return the following on sf1 according to umbra:
-   //   O 58 1333.79 2373761.38
-   //   P 1005 6765.52 187335496.90
-   //   F 144619 866.90 21856547600.45
+   // TPC-H Query 5; should return the following on sf1 according to umbra:
+   // INDONESIA 55502041.1697
+   // VIETNAM 55295086.9967
+   // CHINA 53724494.2566
+   // INDIA 52035512.0002
+   // JAPAN 45410175.6954
    // ------------------------------------------------------------
-   //   select o_orderstatus, count(*), min(o_totalprice), sum(o_totalprice)
-   //   from orders
-   //   where o_orderdate < date '1995-03-15'
-   //     and o_orderpriority = '1-URGENT'
-   //   group by o_orderstatus
-   //   order by count(*)
+   // select
+   //       n_name,
+   //       sum(l_extendedprice * (1 - l_discount)) as revenue
+   // from
+   //       customer,
+   //       orders,
+   //       lineitem,
+   //       supplier,
+   //       nation,
+   //       region
+   // where
+   //       c_custkey = o_custkey
+   //       and l_orderkey = o_orderkey
+   //       and l_suppkey = s_suppkey
+   //       and c_nationkey = s_nationkey
+   //       and s_nationkey = n_nationkey
+   //       and n_regionkey = r_regionkey
+   //       and r_name = 'ASIA'
+   //       and o_orderdate >= date '1994-01-01'
+   //       and o_orderdate < date '1994-01-01' + interval '1' year
+   // group by
+   //       n_name
+   // order by
+   //       revenue desc
    // ------------------------------------------------------------
    {
-      std::cout << "//" << stringToType<date>("1995-03-15", 10) << std::endl;
+      auto r = make_unique<Scan>("region");
+      IU* r_regionkey = r->getIU("r_regionkey");
+      IU* r_name = r->getIU("r_name");
+      auto r_sel =
+          make_unique<Selection>(std::move(r), makeCallExp("std::equal_to()", make_unique<IUExp>(r_name),
+                                                           make_unique<ConstExp<string_view>>("ASIA")));
+
+      auto n = make_unique<Scan>("nation");
+      IU* n_nationkey = n->getIU("n_nationkey");
+      IU* n_regionkey = n->getIU("n_regionkey");
+      IU* n_name = n->getIU("n_name");
+      auto join1 = make_unique<HashJoin>(std::move(r_sel), std::move(n), vector<IU*>{r_regionkey}, vector<IU*>{n_regionkey});
+
+      auto c = make_unique<Scan>("customer");
+      IU* c_custkey = c->getIU("c_custkey");
+      IU* c_nationkey = c->getIU("c_nationkey");
+      auto join2 = make_unique<HashJoin>(std::move(join1), std::move(c), vector<IU*>{n_nationkey}, vector<IU*>{c_nationkey});
+
       auto o = make_unique<Scan>("orders");
-      IU* od = o->getIU("o_orderdate");
-      IU* op = o->getIU("o_totalprice");
-      IU* os = o->getIU("o_orderstatus");
-      IU* oprio = o->getIU("o_orderpriority");
+      auto o_orderkey = o->getIU("o_orderkey");
+      auto o_custkey = o->getIU("o_custkey");
+      auto o_orderdate = o->getIU("o_orderdate");
+      auto lowerBoundExp = makeCallExp("std::greater_equal()", o_orderdate, stringToType<date>("1994-01-01", 10).value);
+      auto upperBoundExp = makeCallExp("std::less()", o_orderdate, stringToType<date>("1995-01-01", 10).value);
+      auto o_sel = make_unique<Selection>(std::move(o), makeCallExp("std::logical_and()", std::move(lowerBoundExp), std::move(upperBoundExp)));
+      auto join3 = make_unique<HashJoin>(std::move(join2), std::move(o_sel), vector<IU*>{c_custkey}, vector<IU*>{o_custkey});
 
-      std::string prio = "1-URGENT";
+      auto l = make_unique<Scan>("lineitem");
+      auto l_orderkey = l->getIU("l_orderkey");
+      auto l_suppkey = l->getIU("l_suppkey");
+      auto l_extendedprice = l->getIU("l_extendedprice");
+      auto l_discount = l->getIU("l_discount");
+      auto join4 = make_unique<HashJoin>(std::move(join3), std::move(l), vector<IU*>{o_orderkey}, vector<IU*>{l_orderkey});
 
-      auto sel = make_unique<Selection>(std::move(o), makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
-      sel = make_unique<Selection>(std::move(sel), makeCallExp("std::equal_to()", oprio, std::string_view(prio)));
-      auto gb = make_unique<GroupBy>(std::move(sel), IUSet({os}));
-      gb->addAggregate(std::make_unique<CountAggregate>("cnt", op));
-      gb->addAggregate(std::make_unique<MinAggregate>("min", op));
-      gb->addAggregate(std::make_unique<SumAggregate>("sum", op));
+      auto s = make_unique<Scan>("supplier");
+      auto s_suppkey = s->getIU("s_suppkey");
+      auto s_nationkey = s->getIU("s_nationkey");
+      auto join5 = make_unique<HashJoin>(std::move(s), std::move(join4), vector<IU*>{s_suppkey, s_nationkey}, vector<IU*>{l_suppkey, n_nationkey});
 
-      IU* cnt_ = gb->getIU("cnt");
-      IU* min_ = gb->getIU("min");
-      IU* sum_ = gb->getIU("sum");
+      auto discountPriceExp = makeCallExp("std::multiplies()", make_unique<IUExp>(l_extendedprice), makeCallExp("std::minus()", make_unique<ConstExp<double>>(1.0), make_unique<IUExp>(l_discount)));
+      auto discountPriceMap = make_unique<Map>(std::move(join5), std::move(discountPriceExp), "revenue", Type::Double);
+      auto discountPrice = discountPriceMap->getIU("revenue");
 
-      auto sort = make_unique<Sort>(std::move(gb), std::vector<IU*>({cnt_}));
-      produceAndPrint(std::move(sort), {os, cnt_, min_, sum_});
+      auto gb = make_unique<GroupBy>(std::move(discountPriceMap), IUSet({n_name}));
+      gb->addAggregate(make_unique<SumAggregate>("revenue", discountPrice));
+      auto revenue = gb->getIU("revenue");
+
+      auto sort = make_unique<Sort>(std::move(gb), vector<IU*>{revenue}, vector<bool>{false});
+      produceAndPrint(std::move(sort), {n_name, revenue});
    }
    return 0;
 }
