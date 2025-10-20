@@ -4,7 +4,7 @@ BasedOnStyle:    Google
 TabWidth:        3
 IndentWidth:     3
 AccessModifierOffset: -3
-ColumnLimit:     111
+ColumnLimit:     0
 SpaceAfterTemplateKeyword: false
 AlwaysBreakTemplateDeclarations: true
 RequiresClausePosition: WithPreceding
