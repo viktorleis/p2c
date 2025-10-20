@@ -25,24 +25,27 @@ using namespace fmt;
 #include "tpch.hpp"
 #include "types.hpp"
 
+using namespace std;
+using namespace p2c;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-// counter to make all IU names unique in generated code
-
-string genVar(const string& name) {
-   static unsigned varCounter = 1;
-   return format("{}{}", name, varCounter++);
-}
-
+// an Information Unit (IU) represents an attribute of a query plan
 struct IU {
    string name;
    Type type;
    string varname;
 
    IU(const string& name, Type type) : name(name), type(type), varname(genVar(name)) {}
+
+   // generate unique variable name
+   static string genVar(const string& name) {
+      static unsigned varCounter = 1;
+      return format("{}{}", name, varCounter++);
+   }
 };
 
-// format generic list of strings with delimites (helper function)
+// format generic list of strings with delimiter (helper)
 string join(const vector<string>& strs, const string& delim) {
    string result = "";
    bool first = true;
@@ -56,7 +59,7 @@ string join(const vector<string>& strs, const string& delim) {
    return result;
 }
 
-// format comma-separated list of IU types (helper function)
+// format comma-separated list of IU types (helper)
 string formatTypes(const vector<IU*>& ius) {
    vector<string> iuNames;
    for (IU* iu : ius)
@@ -64,7 +67,7 @@ string formatTypes(const vector<IU*>& ius) {
    return join(iuNames, ",");
 }
 
-// format comma-separated list of IU varnames (helper function)
+// format comma-separated list of IU varnames (helper)
 string formatVarnames(const vector<IU*>& ius) {
    vector<string> varNames;
    for (IU* iu : ius)
@@ -221,10 +224,9 @@ struct FnExp : public Exp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// generate curly-brace block of C++ code (helper function)
+// generate curly-brace block of C++ code (helper)
 template<class Fn>
-void genBlock(const string& str, Fn fn,
-              const std::source_location& location = std::source_location::current()) {
+void genBlock(const string& str, Fn fn, const std::source_location& location = std::source_location::current()) {
    cout << str << "{ //" << location.line() << "; " << location.function_name() << endl;
    fn();
    cout << "}" << endl;
@@ -235,7 +237,7 @@ typedef std::function<void(void)> ConsumerFn;
 
 // abstract base class of all operators
 struct Operator {
-   // compute *all* IUs this operator produce
+   // compute *all* IUs this operator can produce
    virtual IUSet availableIUs() = 0;
 
    // generate code for operator providing 'required' IUs and pushing them to 'consume' callback
@@ -296,9 +298,7 @@ struct Selection : public Operator {
    unique_ptr<Exp> pred;
 
    // constructor
-   Selection(unique_ptr<Operator> input, unique_ptr<Exp> predicate)
-       : input(std::move(input)),
-         pred(std::move(predicate)) {}
+   Selection(unique_ptr<Operator> input, unique_ptr<Exp> predicate) : input(std::move(input)), pred(std::move(predicate)) {}
 
    // destructor
    ~Selection() {}
@@ -322,9 +322,7 @@ struct Map : public Operator {
 
    // constructor
    Map(unique_ptr<Operator> input, unique_ptr<Exp> exp, const string& name, Type type)
-       : input(std::move(input)),
-         exp(std::move(exp)),
-         iu{name, type} {}
+      : input(std::move(input)), exp(std::move(exp)), iu{name, type} {}
 
    // destructor
    ~Map() {}
@@ -374,8 +372,7 @@ struct Sort : public Operator {
       });
 
       // sort
-      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});\n",
-            v.varname);
+      print("sort({0}.begin(), {0}.end(), [](const auto& t1, const auto& t2) {{ return t1<t2; }});\n", v.varname);
 
       // iterate
       genBlock(format("for (auto& t : {})", v.varname), [&]() {
@@ -387,6 +384,7 @@ struct Sort : public Operator {
    };
 };
 
+// abstract base class for aggregate functions using in group by
 struct Aggregate {
    IU* inputIU;  // IU to aggregate (is nullptr when aggFn==Count)
    IU resultIU;
@@ -400,12 +398,16 @@ struct Aggregate {
 
 struct CountAggregate final : Aggregate {
    CountAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+
    string genInitValue() override { return "1"; }
-   string genUpdate(string oldValueRef) override { return format("{} += 1", oldValueRef); }
+   string genUpdate(string oldValueRef) override {
+      return format("{} += 1", oldValueRef);
+   }
 };
 
 struct MinAggregate final : Aggregate {
    MinAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+
    string genInitValue() override { return format("{}", inputIU->varname); }
    string genUpdate(string oldValueRef) override {
       return format("{} = std::min({}, {})", oldValueRef, oldValueRef, inputIU->varname);
@@ -414,6 +416,7 @@ struct MinAggregate final : Aggregate {
 
 struct SumAggregate final : Aggregate {
    SumAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
+
    string genInitValue() override { return format("{}", inputIU->varname); }
    string genUpdate(string oldValueRef) override {
       return format("{} += {}", oldValueRef, inputIU->varname);
@@ -428,9 +431,7 @@ struct GroupBy : public Operator {
    IU ht{"aggHT", Type::Undefined};
 
    // constructor
-   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs)
-       : input(std::move(input)),
-         groupKeyIUs(groupKeyIUs) {}
+   GroupBy(unique_ptr<Operator> input, const IUSet& groupKeyIUs) : input(std::move(input)), groupKeyIUs(groupKeyIUs) {}
 
    // destructor
    ~GroupBy() {}
@@ -456,8 +457,7 @@ struct GroupBy : public Operator {
 
    void produce(const IUSet& required, ConsumerFn consume) override {
       // build hash table
-      print("unordered_map<tuple<{}>, tuple<{}>> {};\n", formatTypes(groupKeyIUs.v), formatTypes(resultIUs()),
-            ht.varname);
+      print("unordered_map<tuple<{}>, tuple<{}>> {};\n", formatTypes(groupKeyIUs.v), formatTypes(resultIUs()), ht.varname);
       input->produce(groupKeyIUs | inputIUs(), [&]() {
          // insert tuple into hash table
          print("auto it = {}.find({{{}}});\n", ht.varname, formatVarnames(groupKeyIUs.v));
@@ -466,8 +466,7 @@ struct GroupBy : public Operator {
             for (auto& agg : aggs)
                initValues.push_back(agg->genInitValue());
             // insert new group
-            print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(groupKeyIUs.v),
-                  join(initValues, ","));
+            print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(groupKeyIUs.v), join(initValues, ","));
          });
          genBlock("else", [&]() {
             // update group
@@ -506,16 +505,14 @@ struct GroupBy : public Operator {
 struct HashJoin : public Operator {
    unique_ptr<Operator> left;
    unique_ptr<Operator> right;
+   // join keys from both inputs, example: left=[a, b] right=[c, d] a=c AND b=d
    vector<IU*> leftKeyIUs, rightKeyIUs;
+   // variable name for hash table
    IU ht{"joinHT", Type::Undefined};
 
    // constructor
-   HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs,
-            const vector<IU*>& rightKeyIUs)
-       : left(std::move(left)),
-         right(std::move(right)),
-         leftKeyIUs(leftKeyIUs),
-         rightKeyIUs(rightKeyIUs) {}
+   HashJoin(unique_ptr<Operator> left, unique_ptr<Operator> right, const vector<IU*>& leftKeyIUs, const vector<IU*>& rightKeyIUs)
+       : left(std::move(left)), right(std::move(right)), leftKeyIUs(leftKeyIUs), rightKeyIUs(rightKeyIUs) {}
 
    // destructor
    ~HashJoin() {}
@@ -526,24 +523,19 @@ struct HashJoin : public Operator {
       // figure out where required IUs come from
       IUSet leftRequiredIUs = (required & left->availableIUs()) | IUSet(leftKeyIUs);
       IUSet rightRequiredIUs = (required & right->availableIUs()) | IUSet(rightKeyIUs);
-      IUSet leftPayloadIUs =
-          leftRequiredIUs - IUSet(leftKeyIUs);  // these we need to store in hash table as payload
+      IUSet leftPayloadIUs = leftRequiredIUs - IUSet(leftKeyIUs);  // these we need to store in hash table as payload
 
       // build hash table
-      print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs),
-            formatTypes(leftPayloadIUs.v), ht.varname);
+      print("unordered_multimap<tuple<{}>, tuple<{}>> {};\n", formatTypes(leftKeyIUs), formatTypes(leftPayloadIUs.v), ht.varname);
       left->produce(leftRequiredIUs, [&]() {
          // insert tuple into hash table
-         print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(leftKeyIUs),
-               formatVarnames(leftPayloadIUs.v));
+         print("{}.insert({{{{{}}}, {{{}}}}});\n", ht.varname, formatVarnames(leftKeyIUs), formatVarnames(leftPayloadIUs.v));
       });
 
       // probe hash table
       right->produce(rightRequiredIUs, [&]() {
          // iterate over matches
-         genBlock(format("for (auto range = {}.equal_range({{{}}}); range.first!=range.second; range.first++)",
-                         ht.varname, formatVarnames(rightKeyIUs)),
-                  [&]() {
+         genBlock(format("for (auto range = {}.equal_range({{{}}}); range.first!=range.second; range.first++)", ht.varname, formatVarnames(rightKeyIUs)), [&]() {
             // unpack payload
             unsigned countP = 0;
             for (IU* iu : leftPayloadIUs)
@@ -582,7 +574,7 @@ unique_ptr<Exp> makeCallExp(const string& fn, std::unique_ptr<T>... args) {
 
 // Print
 void produceAndPrint(unique_ptr<Operator> root, const std::vector<IU*>& ius, unsigned perfRepeat = 2) {
-   genBlock(format("for (uint64_t {0} = 0; {0} != {1}; {0}++)", genVar("perfRepeat"), perfRepeat - 1), [&]() {
+   genBlock(format("for (uint64_t {0} = 0; {0} != {1}; {0}++)", IU::genVar("perfRepeat"), perfRepeat - 1), [&]() {
       root->produce(IUSet(ius), [&]() {
          for (IU* iu : ius)
             print("cout << {} << \" \";", iu->varname);
@@ -617,10 +609,8 @@ int main(int argc, char* argv[]) {
 
       std::string prio = "1-URGENT";
 
-      auto sel = make_unique<Selection>(
-          std::move(o), makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
-      sel = make_unique<Selection>(std::move(sel),
-                                   makeCallExp("std::equal_to()", oprio, std::string_view(prio)));
+      auto sel = make_unique<Selection>(std::move(o), makeCallExp("std::less()", od, stringToType<date>("1995-03-15", 10).value));
+      sel = make_unique<Selection>(std::move(sel), makeCallExp("std::equal_to()", oprio, std::string_view(prio)));
       auto gb = make_unique<GroupBy>(std::move(sel), IUSet({os}));
       gb->addAggregate(std::make_unique<CountAggregate>("cnt", op));
       gb->addAggregate(std::make_unique<MinAggregate>("min", op));
