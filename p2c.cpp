@@ -406,6 +406,8 @@ struct Aggregate {
    IU resultIU;
 
    Aggregate(string name, IU* _inputIU) : inputIU(_inputIU), resultIU(name, _inputIU->type) {}
+   Aggregate(std::string name, Type type) : inputIU(nullptr), resultIU(std::move(name), type) {}
+
    virtual ~Aggregate() = default;
 
    virtual string genInitValue() = 0;
@@ -413,8 +415,7 @@ struct Aggregate {
 };
 
 struct CountAggregate final : Aggregate {
-   CountAggregate(string name, IU* _inputIU) : Aggregate(name, _inputIU) {}
-
+   CountAggregate(string name) : Aggregate(name, Type::Integer) {}
    string genInitValue() override { return "1"; }
    string genUpdate(string oldValueRef) override {
       return format("{} += 1", oldValueRef);
