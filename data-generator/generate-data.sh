@@ -4,11 +4,12 @@ sf=${1:-"1"}
 
 mkdir -p input
 ( # generate csv data
-  cd tpch-dbgen || exit 1
-  test -f dbgen || ( git submodule update --init .; make )
-  ./dbgen -fs"$sf"
+  cd dbgen || exit 1
+  test -f dbgen || ( git submodule update --init .; make target=release )
+  ./dbgen -C"$sf" -s"$sf"
   chmod uga+rw-x *.tbl
-  mv -f ./*.tbl ../input
+  rm ../input/*
+  mv -f ./*.tbl* ../input
 ) || exit $?
 # convert csv data to binary
 make

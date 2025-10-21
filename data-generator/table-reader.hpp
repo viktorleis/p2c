@@ -2,6 +2,7 @@
 #pragma once
 #include <fcntl.h>
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -19,7 +20,8 @@ struct ColumnOutput {
    uintptr_t output_size;
    std::vector<T> items;
 
-   ColumnOutput(unsigned expected_rows = 1024) : output_size(page_t::GLOBAL_OVERHEAD), items() {
+   ColumnOutput(unsigned expected_rows = 1024)
+       : output_size(page_t::GLOBAL_OVERHEAD), items() {
       items.reserve(expected_rows);
    }
 
@@ -60,42 +62,65 @@ struct TableImport {
    using outputs_t = std::tuple<ColumnOutput<Ts>...>;
 
    outputs_t outputs;
-   FileMapping<char> input;
+   std::vector<FileMapping<char>> inputs;
 
-   TableImport(const char *filename) : outputs(), input(filename) {}
-
-   TableImport(size_t size) : outputs(), input(size) {}
+   TableImport(const char *filename)
+       : outputs(), inputs(open(filename)) {}
 
    ~TableImport() {}
 
-   inline unsigned read() {
+   static std::vector<FileMapping<char>> open(const char *filename) {
+      namespace fs = std::filesystem;
+      std::vector<FileMapping<char>> result;
+      auto path = fs::path(filename);
+      if (fs::is_regular_file(path)) {
+         result.emplace_back(filename);
+         return result;
+      }
+      auto tblname = path.filename();
+      for (auto &f : fs::directory_iterator(path.parent_path())) {
+         if (!f.is_regular_file()) {
+            continue;
+         }
+         auto fname = f.path().filename();
+         if (tblname == fname.stem()) {
+            result.emplace_back(f.path().c_str());
+         }
+      }
+      /// XXX should we ensure that the data is sorted?
+      return result;
+   }
+
+   unsigned read() {
       std::vector<unsigned> columns(sizeof...(Ts));
       for (auto i = 0u; i != sizeof...(Ts); ++i) {
          columns[i] = i;
       }
-
-      unsigned rows = csv::read_file<delim>(input, columns, [&](unsigned col, csv::CharIter &pos) {
-         fold_outputs(0, [&](auto &output, unsigned idx, unsigned num, unsigned v) {
-            if (idx == col) {
-               using value_t = typename std::remove_reference<decltype(output)>::type::value_t;
-               csv::Parser<value_t> parser;
-               auto value = parser.template parse_value<delim>(pos);
-               output.append(value);
-            }
-            return 0;
+      unsigned rows = 0;
+      for (auto &input : inputs) {
+         rows += csv::read_file<delim>(input, columns, [&](unsigned col, csv::CharIter &pos) {
+            fold_outputs(0, [&](auto &output, unsigned idx, unsigned num, unsigned v) {
+               if (idx == col) {
+                  using value_t = typename std::remove_reference<decltype(output)>::type::value_t;
+                  csv::Parser<value_t> parser;
+                  auto value = parser.template parse_value<delim>(pos);
+                  output.append(value);
+               }
+               return 0;
+            });
          });
-      });
+      }
 
       return rows;
    }
-   inline unsigned operator()() { return read(); }
+   unsigned operator()() { return read(); }
 
-   inline constexpr static unsigned column_count() { return std::tuple_size_v<outputs_t>; }
+   constexpr static unsigned column_count() { return std::tuple_size_v<outputs_t>; }
 
-   inline size_t row_count() { return std::get<0>(outputs).items.size(); }
+   size_t row_count() { return std::get<0>(outputs).items.size(); }
 
    template<typename T, typename F, unsigned I = 0>
-   constexpr inline T fold_outputs(T init_value, const F &fn) {
+   constexpr T fold_outputs(T init_value, const F &fn) {
       if constexpr (I == sizeof...(Ts)) {
          return init_value;
       } else {
