@@ -48,7 +48,10 @@ struct TableDef {
  **/
 using nation = TableDef<int32_t, std::string_view, int32_t, std::string_view>;
 [[maybe_unused]] constexpr std::array nation_c{"n_nationkey", "n_name", "n_regionkey", "n_comment"};
-enum nation_columns : uint8_t { n_nationkey, n_name, n_regionkey, n_comment };
+enum nation_columns : uint8_t { n_nationkey,
+                                n_name,
+                                n_regionkey,
+                                n_comment };
 
 /**
  * CREATE TABLE CUSTOMER (
@@ -64,8 +67,8 @@ enum nation_columns : uint8_t { n_nationkey, n_name, n_regionkey, n_comment };
  **/
 using customer = TableDef<int32_t, std::string_view, std::string_view, int32_t, std::string_view, double,
                           std::string_view, std::string_view>;
-[[maybe_unused]] constexpr std::array customer_c{"c_custkey", "c_name",    "c_address",    "c_nationkey",
-                                                 "c_phone",   "c_acctbal", "c_mktsegment", "c_comment"};
+[[maybe_unused]] constexpr std::array customer_c{"c_custkey", "c_name", "c_address", "c_nationkey",
+                                                 "c_phone", "c_acctbal", "c_mktsegment", "c_comment"};
 enum customer_columns {
    c_custkey,
    c_name,
@@ -100,9 +103,9 @@ enum customer_columns {
 using lineitem = TableDef<int64_t, int32_t, int32_t, int32_t, double, double, double, double, char, char, date,
                           date, date, std::string_view, std::string_view, std::string_view>;
 [[maybe_unused]] constexpr std::array lineitem_c{
-    "l_orderkey",    "l_partkey",      "l_suppkey",    "l_linenumber", "l_quantity", "l_extendedprice",
-    "l_discount",    "l_tax",          "l_returnflag", "l_linestatus", "l_shipdate", "l_commitdate",
-    "l_receiptdate", "l_shipinstruct", "l_shipmode",   "l_comment"};
+    "l_orderkey", "l_partkey", "l_suppkey", "l_linenumber", "l_quantity", "l_extendedprice",
+    "l_discount", "l_tax", "l_returnflag", "l_linestatus", "l_shipdate", "l_commitdate",
+    "l_receiptdate", "l_shipinstruct", "l_shipmode", "l_comment"};
 enum lineitem_columns : uint8_t {
    l_orderkey,
    l_partkey,
@@ -137,9 +140,9 @@ enum lineitem_columns : uint8_t {
  **/
 using orders = TableDef<int64_t, int32_t, char, double, date, std::string_view, std::string_view, int32_t,
                         std::string_view>;
-[[maybe_unused]] constexpr std::array orders_c{"o_orderkey",   "o_custkey",      "o_orderstatus",
-                                               "o_totalprice", "o_orderdate",    "o_orderpriority",
-                                               "o_clerk",      "o_shippriority", "o_comment"};
+[[maybe_unused]] constexpr std::array orders_c{"o_orderkey", "o_custkey", "o_orderstatus",
+                                               "o_totalprice", "o_orderdate", "o_orderpriority",
+                                               "o_clerk", "o_shippriority", "o_comment"};
 enum orders_columns : uint8_t {
    o_orderkey,
    o_custkey,
@@ -167,8 +170,8 @@ enum orders_columns : uint8_t {
  **/
 using part = TableDef<int32_t, std::string_view, std::string_view, std::string_view, std::string_view, int32_t,
                       std::string_view, double, std::string_view>;
-[[maybe_unused]] constexpr std::array part_c{"p_partkey", "p_name",      "p_mfgr",        "p_brand",  "p_type",
-                                             "p_size",    "p_container", "p_retailprice", "p_comment"};
+[[maybe_unused]] constexpr std::array part_c{"p_partkey", "p_name", "p_mfgr", "p_brand", "p_type",
+                                             "p_size", "p_container", "p_retailprice", "p_comment"};
 enum part_columns : uint8_t {
    p_partkey,
    p_name,
@@ -193,7 +196,11 @@ enum part_columns : uint8_t {
 using partsupp = TableDef<int32_t, int32_t, int32_t, double, std::string_view>;
 [[maybe_unused]] constexpr std::array partsupp_c{"ps_partkey", "ps_suppkey", "ps_availqty", "ps_supplycost",
                                                  "ps_comment"};
-enum partsupp_columns : uint8_t { ps_partkey, ps_suppkey, ps_availqty, ps_supplycost, ps_comment };
+enum partsupp_columns : uint8_t { ps_partkey,
+                                  ps_suppkey,
+                                  ps_availqty,
+                                  ps_supplycost,
+                                  ps_comment };
 /**
  * CREATE TABLE REGION (
  *   R_REGIONKEY  INTEGER NOT NULL,
@@ -203,7 +210,9 @@ enum partsupp_columns : uint8_t { ps_partkey, ps_suppkey, ps_availqty, ps_supply
  **/
 using region = TableDef<int32_t, std::string_view, std::string_view>;
 [[maybe_unused]] constexpr std::array region_c{"r_regionkey", "r_name", "r_comment"};
-enum region_columns : uint8_t { r_regionkey, r_name, r_comment };
+enum region_columns : uint8_t { r_regionkey,
+                                r_name,
+                                r_comment };
 
 /**
  * CREATE TABLE SUPPLIER (
@@ -218,20 +227,33 @@ enum region_columns : uint8_t { r_regionkey, r_name, r_comment };
  **/
 using supplier =
     TableDef<int32_t, std::string_view, std::string_view, int32_t, std::string_view, double, std::string_view>;
-[[maybe_unused]] constexpr std::array supplier_c{"s_suppkey", "s_name",    "s_address", "s_nationkey",
-                                                 "s_phone",   "s_acctbal", "s_comment"};
-enum supplier_columns : uint8_t { s_suppkey, s_name, s_address, s_nationkey, s_phone, s_acctbal, s_comment };
+[[maybe_unused]] constexpr std::array supplier_c{"s_suppkey", "s_name", "s_address", "s_nationkey",
+                                                 "s_phone", "s_acctbal", "s_comment"};
+enum supplier_columns : uint8_t { s_suppkey,
+                                  s_name,
+                                  s_address,
+                                  s_nationkey,
+                                  s_phone,
+                                  s_acctbal,
+                                  s_comment };
 
 //
 //
 //
-enum TPCH_TABLE : uint8_t { NATION, CUSTOMER, LINEITEM, ORDERS, PART, PARTSUPP, REGION, SUPPLIER };
+enum TPCH_TABLE : uint8_t { NATION,
+                            CUSTOMER,
+                            LINEITEM,
+                            ORDERS,
+                            PART,
+                            PARTSUPP,
+                            REGION,
+                            SUPPLIER };
 inline std::tuple TPCH_READERS = {nation(), customer(), lineitem(), orders(),
-                                  part(),   partsupp(), region(),   supplier()};
+                                  part(), partsupp(), region(), supplier()};
 inline std::tuple TABLE_COLS = {nation_c, customer_c, lineitem_c, orders_c,
-                                part_c,   partsupp_c, region_c,   supplier_c};
+                                part_c, partsupp_c, region_c, supplier_c};
 inline std::string TABLE_NAME[] = {"nation", "customer", "lineitem", "orders",
-                                   "part",   "partsupp", "region",   "supplier"};
+                                   "part", "partsupp", "region", "supplier"};
 inline char DBGEN_TARGET[] = {'n', 'c', 'L', 'O', 'P', 'S', 'r', 's'};
 
 constexpr unsigned TABLE_COUNT = std::tuple_size_v<decltype(TPCH_READERS)>;
